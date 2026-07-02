@@ -39,7 +39,7 @@ function generateReminderMessage() {
 
   const tagList = usernames.join(' ');
 
-  return `🔔 **THÔNG BÁO LỜI NHẮC HÀNG NGÀY** 🔔\n\n` +
+  return `🔔 <b>THÔNG BÁO LỜI NHẮC HÀNG NGÀY</b> 🔔\n\n` +
          `Chào buổi sáng mọi người! ☀️\n` +
          `Đã đến 8:30 sáng rồi, chúc mọi người một ngày làm việc tràn đầy năng lượng!\n\n` +
          `${tagList ? `Xin chào các bạn: ${tagList}` : 'Chúc cả nhóm làm việc hiệu quả!'}`;
@@ -57,7 +57,7 @@ async function sendReminder() {
   
   try {
     console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở đến Chat ID: ${currentChatId}...`);
-    await bot.sendMessage(currentChatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
     console.log('Gửi tin nhắn nhắc nhở thành công!');
   } catch (error) {
     console.error('Gửi tin nhắn nhắc nhở thất bại:', error.message);
@@ -77,14 +77,14 @@ cron.schedule(cronTime, () => {
 bot.onText(/\/status/, (msg) => {
   const responseChatId = msg.chat.id;
   const currentTime = moment().tz(timezone).format('DD-MM-YYYY HH:mm:ss');
-  const statusMsg = `✅ **Telegram Reminder Bot đang hoạt động bình thường!**\n\n` +
-                    `• Múi giờ: \`${timezone}\`\n` +
-                    `• Giờ hiện tại: \`${currentTime}\`\n` +
-                    `• Lịch gửi nhắc nhở: \`${cronTime}\` (8h30 sáng hàng ngày)\n` +
-                    `• Nhóm nhận tin nhắn (ID): \`${chatId}\`\n` +
+  const statusMsg = `✅ <b>Telegram Reminder Bot đang hoạt động bình thường!</b>\n\n` +
+                    `• Múi giờ: <code>${timezone}</code>\n` +
+                    `• Giờ hiện tại: <code>${currentTime}</code>\n` +
+                    `• Lịch gửi nhắc nhở: <code>${cronTime}</code> (8h30 sáng hàng ngày)\n` +
+                    `• Nhóm nhận tin nhắn (ID): <code>${chatId}</code>\n` +
                     `• Thử nghiệm gửi ngay lập tức: /test_send`;
   
-  bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'Markdown' });
+  bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'HTML' });
 });
 
 // Phản hồi lệnh /test_send để chạy thử gửi tin nhắn nhắc nhở ngay lập tức
@@ -102,8 +102,8 @@ bot.onText(/\/test_send/, async (msg) => {
 
   const message = generateReminderMessage();
   try {
-    await bot.sendMessage(currentChatId, message, { parse_mode: 'Markdown' });
-    bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: \`${currentChatId}\``, { parse_mode: 'Markdown' });
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
   } catch (error) {
     bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
   }

@@ -27,7 +27,7 @@ const usernames = usernamesStr
 
 const tagList = usernames.join(' ');
 
-const message = `🔔 **THÔNG BÁO LỜI NHẮC HÀNG NGÀY (THỬ NGHIỆM)** 🔔\n\n` +
+const message = `🔔 <b>THÔNG BÁO LỜI NHẮC HÀNG NGÀY (THỬ NGHIỆM)</b> 🔔\n\n` +
                `Chào buổi sáng mọi người! ☀️\n` +
                `Đây là tin nhắn chạy thử nghiệm hệ thống nhắc nhở.\n\n` +
                `${tagList ? `Xin chào các bạn: ${tagList}` : 'Chúc cả nhóm làm việc hiệu quả!'}`;
@@ -36,7 +36,7 @@ const bot = new TelegramBot(token, { polling: false });
 
 console.log('Đang gửi tin nhắn...');
 
-bot.sendMessage(chatId, message, { parse_mode: 'Markdown' })
+bot.sendMessage(chatId, message, { parse_mode: 'HTML' })
   .then((response) => {
     console.log('✅ GỬI TIN NHẮN THỬ NGHIỆM THÀNH CÔNG!');
     console.log(`ID tin nhắn: ${response.message_id}`);
