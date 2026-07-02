@@ -37,12 +37,18 @@ function generateReminderMessage() {
     .filter(name => name.length > 0)
     .map(name => name.startsWith('@') ? name : `@${name}`);
 
-  const tagList = usernames.join(' ');
-
-  return `🔔 <b>THÔNG BÁO LỜI NHẮC HÀNG NGÀY</b> 🔔\n\n` +
-         `Chào buổi sáng mọi người! ☀️\n` +
-         `Đã đến 8:30 sáng rồi, chúc mọi người một ngày làm việc tràn đầy năng lượng!\n\n` +
-         `${tagList ? `Xin chào các bạn: ${tagList}` : 'Chúc cả nhóm làm việc hiệu quả!'}`;
+  return `🚚 <b>BÁO CÁO ĐẦU CA</b>\n\n` +
+         `Vui lòng cập nhật các nội dung sau:\n\n` +
+         `1. Nhân sự\n` +
+         `👥 Số nhân sự đi làm / Tổng số nhân sự\n\n` +
+         `2. Lái xe\n` +
+         `🚛 Số lượng lái xe thực tế / Tổng số lái xe đã book\n\n` +
+         `3. FL\n` +
+         `📦 Số lượng FL đi làm / Tổng số FL đã book\n\n` +
+         `4. Mục tiêu trong ca\n` +
+         `🎯 Hoàn thành việc gán 100% hàng giao trong buổi sáng.\n\n` +
+         `Xin cảm ơn mọi người đã phối hợp. Chúc cả đội có một ca làm việc an toàn, hiệu quả và hoàn thành tốt các mục tiêu!\n\n` +
+         `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
 }
 
 // Hàm gửi tin nhắn nhắc nhở
