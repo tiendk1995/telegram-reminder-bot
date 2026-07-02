@@ -22,6 +22,14 @@ if (!chatId || chatId === 'YOUR_CHAT_ID_HERE') {
 // Khởi tạo bot với chế độ polling (cho phép nhận tin nhắn/lệnh từ người dùng)
 const bot = new TelegramBot(token, { polling: true });
 
+bot.on('polling_error', (error) => {
+  console.error('Lỗi Polling Telegram:', error.message);
+});
+
+bot.on('error', (error) => {
+  console.error('Lỗi Bot Telegram:', error.message);
+});
+
 console.log('=== Telegram Reminder Bot Đang Khởi Động ===');
 console.log(`Múi giờ hoạt động: ${timezone}`);
 console.log(`Thời gian lập lịch: ${cronTime} (theo định dạng cron)`);
@@ -36,6 +44,8 @@ function generateReminderMessage() {
     .map(name => name.trim())
     .filter(name => name.length > 0)
     .map(name => name.startsWith('@') ? name : `@${name}`);
+
+  const tagList = usernames.join(' ');
 
   return `🚚 <b>BÁO CÁO ĐẦU CA</b>\n\n` +
          `Vui lòng cập nhật các nội dung sau:\n\n` +
