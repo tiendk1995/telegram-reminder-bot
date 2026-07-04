@@ -68,12 +68,23 @@ function generateMorningReminderMessage() {
          `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
 }
 
-// Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU (không tag ai)
+// Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU (có tag)
 function generateAfternoonReminderMessage() {
-  return `🚚 <b>BÁO CÁO LÌCH BOOK XE GIAO NGÀY HÔM SAU</b>\n\n` +
+  const usernamesStr = process.env.EMPLOYEE_USERNAMES || '';
+  // Xử lý danh sách username để đảm bảo đúng định dạng tag
+  const usernames = usernamesStr
+    .split(',')
+    .map(name => name.trim())
+    .filter(name => name.length > 0)
+    .map(name => name.startsWith('@') ? name : `@${name}`);
+
+  const tagList = usernames.join(' ');
+
+  return `🚚 <b>BOOK XE GIAO NGÀY HÔM SAU</b>\n\n` +
          `🚛 Xe có NVGH đi cùng: …… xe\n` +
          `👨💼 Xe có FL đi cùng: …… xe\n\n` +
-         `📊 Tổng số xe cần book: …… xe`;
+         `📊 Tổng số xe cần book: …… xe\n\n` +
+         `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
 }
 
 // Hàm sinh nội dung tin nhắn nhắc nhở TỐI (không tag ai)

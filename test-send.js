@@ -44,11 +44,20 @@ if (testType === 'evening') {
             `⚠️ Quá 12:00 cùng ngày chưa nộp sẽ bị ghi nhận là chiếm dụng COD.\n\n` +
             `Xin cảm ơn mọi người đã phối hợp!`;
 } else if (testType === 'afternoon') {
-  // Lời nhắc buổi chiều
-  message = `🚚 <b>BÁO CÁO LỊCH BOOK XE GIAO NGÀY HÔM SAU (THỬ NGHIỆM)</b>\n\n` +
+  // Lời nhắc buổi chiều (có tag)
+  const usernames = usernamesStr
+    .split(',')
+    .map(name => name.trim())
+    .filter(name => name.length > 0)
+    .map(name => name.startsWith('@') ? name : `@${name}`);
+
+  const tagList = usernames.join(' ');
+
+  message = `🚚 <b>BOOK XE GIAO NGÀY HÔM SAU (THỬ NGHIỆM)</b>\n\n` +
             `🚛 Xe có NVGH đi cùng: …… xe\n` +
             `👨💼 Xe có FL đi cùng: …… xe\n\n` +
-            `📊 Tổng số xe cần book: …… xe`;
+            `📊 Tổng số xe cần book: …… xe\n\n` +
+            `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
 } else {
   // Lời nhắc buổi sáng (có tag)
   const usernames = usernamesStr
