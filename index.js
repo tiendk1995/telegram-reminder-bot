@@ -6,9 +6,12 @@ const moment = require('moment-timezone');
 // Đọc cấu hình từ .env
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatIdMorning = process.env.TELEGRAM_CHAT_ID;
+const chatIdAfternoon = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
 const chatIdEvening = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
 const timezone = process.env.TIMEZONE || 'Asia/Ho_Chi_Minh';
+
 const cronTimeMorning = process.env.CRON_TIME || '30 8 * * *';
+const cronTimeAfternoon = process.env.CRON_TIME_AFTERNOON || '30 16 * * *';
 const cronTimeEvening = process.env.CRON_TIME_EVENING || '0 20 * * *';
 
 // Kiểm tra xem cấu hình đã hợp lệ chưa
@@ -35,6 +38,7 @@ bot.on('error', (error) => {
 console.log('=== Telegram Reminder Bot Đang Khởi Động ===');
 console.log(`Múi giờ hoạt động: ${timezone}`);
 console.log(`Lịch gửi SÁNG (8h30): ${cronTimeMorning} (Nhóm ID: ${chatIdMorning})`);
+console.log(`Lịch gửi CHIỀU (16h30): ${cronTimeAfternoon} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Lịch gửi TỐI (20h00): ${cronTimeEvening} (Nhóm ID: ${chatIdEvening})`);
 console.log(`Thời gian hiện tại của hệ thống bot: ${moment().tz(timezone).format('YYYY-MM-DD HH:mm:ss')}`);
 
@@ -62,6 +66,14 @@ function generateMorningReminderMessage() {
          `🎯 Hoàn thành việc gán 100% hàng giao trong buổi sáng.\n\n` +
          `Xin cảm ơn mọi người đã phối hợp. Chúc cả đội có một ca làm việc an toàn, hiệu quả và hoàn thành tốt các mục tiêu!\n\n` +
          `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
+}
+
+// Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU (không tag ai)
+function generateAfternoonReminderMessage() {
+  return `🚚 <b>BÁO CÁO LÌCH BOOK XE GIAO NGÀY HÔM SAU</b>\n\n` +
+         `🚛 Xe có NVGH đi cùng: …… xe\n` +
+         `👨💼 Xe có FL đi cùng: …… xe\n\n` +
+         `📊 Tổng số xe cần book: …… xe`;
 }
 
 // Hàm sinh nội dung tin nhắn nhắc nhở TỐI (không tag ai)
@@ -95,7 +107,26 @@ async function sendMorningReminder() {
   }
 }
 
-// Hàm gửi tin nhắn nhắc nhở TỐI (gửi đến Chat ID tối riêng biệt nếu có)
+// Hàm gửi tin nhắn nhắc nhở CHIỀU
+async function sendAfternoonReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở chiều vì chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON trong file .env');
+    return;
+  }
+
+  const message = generateAfternoonReminderMessage();
+  
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở CHIỀU đến Chat ID: ${currentChatId}...`);
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi tin nhắn nhắc nhở CHIỀU thành công!');
+  } catch (error) {
+    console.error('Gửi tin nhắn nhắc nhở CHIỀU thất bại:', error.message);
+  }
+}
+
+// Hàm gửi tin nhắn nhắc nhở TỐI
 async function sendEveningReminder() {
   const currentChatId = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
   if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
@@ -123,6 +154,15 @@ cron.schedule(cronTimeMorning, () => {
   timezone: timezone
 });
 
+// Thiết lập cron job nhắc nhở CHIỀU (16h30)
+cron.schedule(cronTimeAfternoon, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở CHIỀU...`);
+  sendAfternoonReminder();
+}, {
+  scheduled: true,
+  timezone: timezone
+});
+
 // Thiết lập cron job nhắc nhở TỐI (20h00)
 cron.schedule(cronTimeEvening, () => {
   console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở TỐI...`);
@@ -139,10 +179,12 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
   const statusMsg = `✅ <b>Telegram Reminder Bot đang hoạt động bình thường!</b>\n\n` +
                     `• Múi giờ: <code>${timezone}</code>\n` +
                     `• Giờ hiện tại: <code>${currentTime}</code>\n` +
-                    `• Hẹn giờ SÁNG: <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
-                    `• Hẹn giờ TỐI: <code>${cronTimeEvening}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n\n` +
-                    `• Thử nghiệm gửi SÁNG: /test_send\n` +
-                    `• Thử nghiệm gửi TỐI: /test_send_evening`;
+                    `• Hẹn giờ SÁNG (8h30): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
+                    `• Hẹn giờ CHIỀU (16h30): <code>${cronTimeAfternoon}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
+                    `• Hẹn giờ TỐI (20h00): <code>${cronTimeEvening}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n\n` +
+                    `• Thử nghiệm SÁNG: /test_send\n` +
+                    `• Thử nghiệm CHIỀU: /test_send_afternoon\n` +
+                    `• Thử nghiệm TỐI: /test_send_evening`;
   
   bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'HTML' });
 });
@@ -159,6 +201,26 @@ bot.onText(/\/test_send(_morning)?(@\w+)?$/, async (msg) => {
   }
 
   const message = generateMorningReminderMessage();
+  try {
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+  } catch (error) {
+    bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+  }
+});
+
+// Phản hồi lệnh /test_send_afternoon để chạy thử gửi tin nhắn CHIỀU
+bot.onText(/\/test_send_afternoon(@\w+)?$/, async (msg) => {
+  const responseChatId = msg.chat.id;
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi tin nhắn nhắc nhở CHIỀU...');
+  
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON trong file .env');
+    return;
+  }
+
+  const message = generateAfternoonReminderMessage();
   try {
     await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
     bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });

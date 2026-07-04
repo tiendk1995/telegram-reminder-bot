@@ -3,12 +3,19 @@ const TelegramBot = require('node-telegram-bot-api');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatIdMorning = process.env.TELEGRAM_CHAT_ID;
+const chatIdAfternoon = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
 const chatIdEvening = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
 const usernamesStr = process.env.EMPLOYEE_USERNAMES || '';
 
-// Lấy tham số loại test (morning hoặc evening) từ dòng lệnh, mặc định là morning
+// Lấy tham số loại test (morning, afternoon, hoặc evening) từ dòng lệnh, mặc định là morning
 const testType = process.argv[2] || 'morning';
-const targetChatId = testType === 'evening' ? chatIdEvening : chatIdMorning;
+
+let targetChatId = chatIdMorning;
+if (testType === 'evening') {
+  targetChatId = chatIdEvening;
+} else if (testType === 'afternoon') {
+  targetChatId = chatIdAfternoon;
+}
 
 if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
   console.error('LỖI: Vui lòng cấu hình TELEGRAM_BOT_TOKEN trong file .env');
@@ -16,7 +23,7 @@ if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
 }
 
 if (!targetChatId || targetChatId === 'YOUR_CHAT_ID_HERE') {
-  console.error('LỖI: Vui lòng cấu hình TELEGRAM_CHAT_ID hoặc TELEGRAM_CHAT_ID_EVENING trong file .env trước khi chạy test.');
+  console.error('LỖI: Vui lòng cấu hình ID nhóm tương ứng trong file .env trước khi chạy test.');
   process.exit(1);
 }
 
@@ -27,7 +34,7 @@ console.log(`Chat ID target: ${targetChatId}`);
 let message = '';
 
 if (testType === 'evening') {
-  // Lời nhắc buổi tối (không tag)
+  // Lời nhắc buổi tối
   message = `📋 <b>KIỂM TRA CUỐI NGÀY (THỬ NGHIỆM)</b>\n\n` +
             `1️⃣ Cập nhật và kết thúc App giao hàng\n` +
             `✅ Cập nhật đầy đủ trạng thái đơn hàng.\n` +
@@ -36,6 +43,12 @@ if (testType === 'evening') {
             `💰 Tiến hành nộp COD đúng quy định.\n` +
             `⚠️ Quá 12:00 cùng ngày chưa nộp sẽ bị ghi nhận là chiếm dụng COD.\n\n` +
             `Xin cảm ơn mọi người đã phối hợp!`;
+} else if (testType === 'afternoon') {
+  // Lời nhắc buổi chiều
+  message = `🚚 <b>BÁO CÁO LỊCH BOOK XE GIAO NGÀY HÔM SAU (THỬ NGHIỆM)</b>\n\n` +
+            `🚛 Xe có NVGH đi cùng: …… xe\n` +
+            `👨💼 Xe có FL đi cùng: …… xe\n\n` +
+            `📊 Tổng số xe cần book: …… xe`;
 } else {
   // Lời nhắc buổi sáng (có tag)
   const usernames = usernamesStr
