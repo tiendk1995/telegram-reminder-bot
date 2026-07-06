@@ -8,11 +8,13 @@ const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatIdMorning = process.env.TELEGRAM_CHAT_ID;
 const chatIdAfternoon = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
 const chatIdEvening = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
+const chatIdNight = process.env.TELEGRAM_CHAT_ID_NIGHT || process.env.TELEGRAM_CHAT_ID;
 const timezone = process.env.TIMEZONE || 'Asia/Ho_Chi_Minh';
 
-const cronTimeMorning = process.env.CRON_TIME || '30 8 * * *';
+const cronTimeMorning = process.env.CRON_TIME || '0 10 * * *';
 const cronTimeAfternoon = process.env.CRON_TIME_AFTERNOON || '30 16 * * *';
 const cronTimeEvening = process.env.CRON_TIME_EVENING || '0 20 * * *';
+const cronTimeNight = process.env.CRON_TIME_NIGHT || '0 1 * * *';
 
 // Kiểm tra xem cấu hình đã hợp lệ chưa
 if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
@@ -37,9 +39,10 @@ bot.on('error', (error) => {
 
 console.log('=== Telegram Reminder Bot Đang Khởi Động ===');
 console.log(`Múi giờ hoạt động: ${timezone}`);
-console.log(`Lịch gửi SÁNG (8h30): ${cronTimeMorning} (Nhóm ID: ${chatIdMorning})`);
+console.log(`Lịch gửi SÁNG (10h00): ${cronTimeMorning} (Nhóm ID: ${chatIdMorning})`);
 console.log(`Lịch gửi CHIỀU (16h30): ${cronTimeAfternoon} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Lịch gửi TỐI (20h00): ${cronTimeEvening} (Nhóm ID: ${chatIdEvening})`);
+console.log(`Lịch gửi ĐÊM (01h00): ${cronTimeNight} (Nhóm ID: ${chatIdNight})`);
 console.log(`Thời gian hiện tại của hệ thống bot: ${moment().tz(timezone).format('YYYY-MM-DD HH:mm:ss')}`);
 
 // Hàm sinh nội dung tin nhắn nhắc nhở SÁNG và tag nhân viên
@@ -59,7 +62,7 @@ function generateMorningReminderMessage() {
          `1. Nhân sự\n` +
          `👥 Số nhân sự đi làm / Tổng số nhân sự\n\n` +
          `2. Lái xe\n` +
-         `🚛 Số lượng lái xe thực tế / Tổng số lái xe đã book\n\n` +
+         `Cấu hình số lượng lái xe thực tế / Tổng số lái xe đã book\n\n` +
          `3. FL\n` +
          `📦 Số lượng FL đi làm / Tổng số FL đã book\n\n` +
          `4. Đơn tồn\n` +
@@ -70,7 +73,6 @@ function generateMorningReminderMessage() {
 // Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU (có tag)
 function generateAfternoonReminderMessage() {
   const usernamesStr = process.env.EMPLOYEE_USERNAMES || '';
-  // Xử lý danh sách username để đảm bảo đúng định dạng tag
   const usernames = usernamesStr
     .split(',')
     .map(name => name.trim())
@@ -98,6 +100,30 @@ function generateEveningReminderMessage() {
          `Xin cảm ơn mọi người đã phối hợp!`;
 }
 
+// Hàm sinh nội dung tin nhắn nhắc nhở ĐÊM (có tag riêng)
+function generateNightReminderMessage() {
+  const usernamesStr = process.env.EMPLOYEE_USERNAMES_NIGHT || '';
+  const usernames = usernamesStr
+    .split(',')
+    .map(name => name.trim())
+    .filter(name => name.length > 0)
+    .map(name => name.startsWith('@') ? name : `@${name}`);
+
+  const tagList = usernames.join(' ');
+
+  return `🚚 <b>BÁO CÁO CA ĐÊM</b>\n\n` +
+         `Vui lòng cập nhật các nội dung sau:\n\n` +
+         `1. Layout hàng rớt luân chuyển\n` +
+         `📦 Tên layout: ………………\n` +
+         `📢 Đã báo nhóm Vận tải và nhóm Thảo luận để ca sáng xin xe xuất: ☐ Có / ☐ Chưa\n\n` +
+         `2. Đơn treo luân chuyển\n` +
+         `📋 Số đơn treo: ………\n` +
+         `📝 Lý do treo: ………………\n\n` +
+         `3. FL\n` +
+         `👨💼 Số lượng FL thực tế / Số lượng FL đã book\n\n` +
+         `🏷️ TAG: ${tagList || ''}`;
+}
+
 // Hàm gửi tin nhắn nhắc nhở SÁNG
 async function sendMorningReminder() {
   const currentChatId = process.env.TELEGRAM_CHAT_ID;
@@ -107,13 +133,12 @@ async function sendMorningReminder() {
   }
 
   const message = generateMorningReminderMessage();
-  
   try {
     console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở SÁNG đến Chat ID: ${currentChatId}...`);
     await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
     console.log('Gửi tin nhắn nhắc nhở SÁNG thành công!');
   } catch (error) {
-    console.error('Gửi tin nhắn nhắc nhở SÁNG thất bại:', error.message);
+    console.error('Gửi tin nhắn nhắc nhở sáng thất bại:', error.message);
   }
 }
 
@@ -126,7 +151,6 @@ async function sendAfternoonReminder() {
   }
 
   const message = generateAfternoonReminderMessage();
-  
   try {
     console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở CHIỀU đến Chat ID: ${currentChatId}...`);
     await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
@@ -145,7 +169,6 @@ async function sendEveningReminder() {
   }
 
   const message = generateEveningReminderMessage();
-  
   try {
     console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở TỐI đến Chat ID: ${currentChatId}...`);
     await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
@@ -155,7 +178,25 @@ async function sendEveningReminder() {
   }
 }
 
-// Thiết lập cron job nhắc nhở SÁNG (8h30)
+// Hàm gửi tin nhắn nhắc nhở ĐÊM
+async function sendNightReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_NIGHT || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở đêm vì chưa cấu hình TELEGRAM_CHAT_ID_NIGHT trong file .env');
+    return;
+  }
+
+  const message = generateNightReminderMessage();
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở ĐÊM đến Chat ID: ${currentChatId}...`);
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi tin nhắn nhắc nhở ĐÊM thành công!');
+  } catch (error) {
+    console.error('Gửi tin nhắn nhắc nhở ĐÊM thất bại:', error.message);
+  }
+}
+
+// Thiết lập cron job nhắc nhở SÁNG (10h00)
 cron.schedule(cronTimeMorning, () => {
   console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở SÁNG...`);
   sendMorningReminder();
@@ -182,6 +223,15 @@ cron.schedule(cronTimeEvening, () => {
   timezone: timezone
 });
 
+// Thiết lập cron job nhắc nhở ĐÊM (01h00 sáng hôm sau)
+cron.schedule(cronTimeNight, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở ĐÊM...`);
+  sendNightReminder();
+}, {
+  scheduled: true,
+  timezone: timezone
+});
+
 // Phản hồi lệnh /status để kiểm tra xem bot còn sống hay không
 bot.onText(/\/status(@\w+)?$/, (msg) => {
   const responseChatId = msg.chat.id;
@@ -189,12 +239,14 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
   const statusMsg = `✅ <b>Telegram Reminder Bot đang hoạt động bình thường!</b>\n\n` +
                     `• Múi giờ: <code>${timezone}</code>\n` +
                     `• Giờ hiện tại: <code>${currentTime}</code>\n` +
-                    `• Hẹn giờ SÁNG (8h30): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
+                    `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
                     `• Hẹn giờ CHIỀU (16h30): <code>${cronTimeAfternoon}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
-                    `• Hẹn giờ TỐI (20h00): <code>${cronTimeEvening}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n\n` +
+                    `• Hẹn giờ TỐI (20h00): <code>${cronTimeEvening}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n` +
+                    `• Hẹn giờ ĐÊM (01h00): <code>${cronTimeNight}</code> (Nhóm ID: <code>${chatIdNight}</code>)\n\n` +
                     `• Thử nghiệm SÁNG: /test_send\n` +
                     `• Thử nghiệm CHIỀU: /test_send_afternoon\n` +
-                    `• Thử nghiệm TỐI: /test_send_evening`;
+                    `• Thử nghiệm TỐI: /test_send_evening\n` +
+                    `• Thử nghiệm ĐÊM: /test_send_night`;
   
   bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'HTML' });
 });
@@ -251,6 +303,26 @@ bot.onText(/\/test_send_evening(@\w+)?$/, async (msg) => {
   }
 
   const message = generateEveningReminderMessage();
+  try {
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+  } catch (error) {
+    bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+  }
+});
+
+// Phản hồi lệnh /test_send_night để chạy thử gửi tin nhắn ĐÊM
+bot.onText(/\/test_send_night(@\w+)?$/, async (msg) => {
+  const responseChatId = msg.chat.id;
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi tin nhắn nhắc nhở ĐÊM...');
+  
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_NIGHT || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_NIGHT trong file .env');
+    return;
+  }
+
+  const message = generateNightReminderMessage();
   try {
     await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
     bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });

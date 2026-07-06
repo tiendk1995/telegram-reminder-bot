@@ -5,9 +5,11 @@ const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatIdMorning = process.env.TELEGRAM_CHAT_ID;
 const chatIdAfternoon = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
 const chatIdEvening = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
+const chatIdNight = process.env.TELEGRAM_CHAT_ID_NIGHT || process.env.TELEGRAM_CHAT_ID;
 const usernamesStr = process.env.EMPLOYEE_USERNAMES || '';
+const usernamesStrNight = process.env.EMPLOYEE_USERNAMES_NIGHT || '';
 
-// Lấy tham số loại test (morning, afternoon, hoặc evening) từ dòng lệnh, mặc định là morning
+// Lấy tham số loại test (morning, afternoon, evening, hoặc night) từ dòng lệnh, mặc định là morning
 const testType = process.argv[2] || 'morning';
 
 let targetChatId = chatIdMorning;
@@ -15,6 +17,8 @@ if (testType === 'evening') {
   targetChatId = chatIdEvening;
 } else if (testType === 'afternoon') {
   targetChatId = chatIdAfternoon;
+} else if (testType === 'night') {
+  targetChatId = chatIdNight;
 }
 
 if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
@@ -44,7 +48,7 @@ if (testType === 'evening') {
             `⚠️ Quá 12:00 cùng ngày chưa nộp sẽ bị ghi nhận là chiếm dụng COD.\n\n` +
             `Xin cảm ơn mọi người đã phối hợp!`;
 } else if (testType === 'afternoon') {
-  // Lời nhắc buổi chiều (có tag)
+  // Lời nhắc buổi chiều
   const usernames = usernamesStr
     .split(',')
     .map(name => name.trim())
@@ -54,10 +58,31 @@ if (testType === 'evening') {
   const tagList = usernames.join(' ');
 
   message = `🚚 <b>BOOK XE GIAO NGÀY HÔM SAU (THỬ NGHIỆM)</b>\n\n` +
-            `🚛 Xe có NVGH đi cùng: …… xe\n` +
+            `Cơ cấu xe có NVGH đi cùng: …… xe\n` +
             `👨💼 Xe có FL đi cùng: …… xe\n\n` +
             `📊 Tổng số xe cần book: …… xe\n\n` +
             `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
+} else if (testType === 'night') {
+  // Lời nhắc ca đêm (có tag riêng)
+  const usernames = usernamesStrNight
+    .split(',')
+    .map(name => name.trim())
+    .filter(name => name.length > 0)
+    .map(name => name.startsWith('@') ? name : `@${name}`);
+
+  const tagList = usernames.join(' ');
+
+  message = `🚚 <b>BÁO CÁO CA ĐÊM (THỬ NGHIỆM)</b>\n\n` +
+            `Vui lòng cập nhật các nội dung sau:\n\n` +
+            `1. Layout hàng rớt luân chuyển\n` +
+            `📦 Tên layout: ………………\n` +
+            `📢 Đã báo nhóm Vận tải và nhóm Thảo luận để ca sáng xin xe xuất: ☐ Có / ☐ Chưa\n\n` +
+            `2. Đơn treo luân chuyển\n` +
+            `📋 Số đơn treo: ………\n` +
+            `📝 Lý do treo: ………………\n\n` +
+            `3. FL\n` +
+            `👨💼 Số lượng FL thực tế / Số lượng FL đã book\n\n` +
+            `🏷️ TAG: ${tagList || ''}`;
 } else {
   // Lời nhắc buổi sáng (có tag)
   const usernames = usernamesStr
@@ -73,7 +98,7 @@ if (testType === 'evening') {
             `1. Nhân sự\n` +
             `👥 Số nhân sự đi làm / Tổng số nhân sự\n\n` +
             `2. Lái xe\n` +
-            `🚛 Số lượng lái xe thực tế / Tổng số lái xe đã book\n\n` +
+            `Cấu hình số lượng lái xe thực tế / Tổng số lái xe đã book\n\n` +
             `3. FL\n` +
             `📦 Số lượng FL đi làm / Tổng số FL đã book\n\n` +
             `4. Đơn tồn\n` +
