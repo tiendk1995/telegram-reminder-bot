@@ -68,7 +68,7 @@ if (testType === 'evening') {
 
   const tagList = usernames.join(' ');
 
-  message = `🚚 <b>BÁO CÁO ĐẦU CA (THỬ NGHIỆM)</b>\n\n` +
+  message = `🚚 <b>BÁO CÁO CA SÁNG (THỬ NGHIỆM)</b>\n\n` +
             `Vui lòng cập nhật các nội dung sau:\n\n` +
             `1. Nhân sự\n` +
             `👥 Số nhân sự đi làm / Tổng số nhân sự\n\n` +
@@ -76,10 +76,9 @@ if (testType === 'evening') {
             `🚛 Số lượng lái xe thực tế / Tổng số lái xe đã book\n\n` +
             `3. FL\n` +
             `📦 Số lượng FL đi làm / Tổng số FL đã book\n\n` +
-            `4. Mục tiêu trong ca\n` +
-            `🎯 Hoàn thành việc gán 100% hàng giao trong buổi sáng.\n\n` +
-            `Xin cảm ơn mọi người đã phối hợp. Chúc cả đội có một ca làm việc an toàn, hiệu quả và hoàn thành tốt các mục tiêu!\n\n` +
-            `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
+            `4. Đơn tồn\n` +
+            `📋 Tổng số đơn chưa được gán\n\n` +
+            `🏷️ TAG: ${tagList || ''}`;
 }
 
 const bot = new TelegramBot(token, { polling: false });
