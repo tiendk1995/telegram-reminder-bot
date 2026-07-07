@@ -72,16 +72,16 @@ if (testType === 'evening') {
 
   const tagList = usernames.join(' ');
 
-  message = `🚚 <b>BÁO CÁO CA ĐÊM (THỬ NGHIỆM)</b>\n\n` +
-            `Vui lòng cập nhật các nội dung sau:\n\n` +
-            `1. Layout hàng rớt luân chuyển\n` +
-            `📦 Tên layout: ………………\n` +
-            `📢 Đã báo nhóm Vận tải và nhóm Thảo luận để ca sáng xin xe xuất: ☐ Có / ☐ Chưa\n\n` +
-            `2. Đơn treo luân chuyển\n` +
-            `📋 Số đơn treo: ………\n` +
-            `📝 Lý do treo: ………………\n\n` +
-            `3. FL\n` +
-            `👨💼 Số lượng FL thực tế / Số lượng FL đã book\n\n` +
+  message = `🚚 <b>BÁO CÁO CA ĐÊM (THỬ NGHIỆM)</b>\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `1️⃣ <b>HÀNG RỚT LUÂN CHUYỂN</b>\n` +
+            `↳ 📦 Tên layout: ......\n` +
+            `↳ 📢 Đã báo Vận tải & Thảo luận xin xe: ☐ Có / ☐ Chưa\n\n` +
+            `2️⃣ <b>ĐƠN TREO LUÂN CHUYỂN</b>\n` +
+            `↳ 📋 Số đơn: ......\n` +
+            `↳ 📝 Lý do: ......\n\n` +
+            `3️⃣ <b>FL</b>\n` +
+            `↳ 👨💼 Thực tế: ...... | Đã book: ......\n\n` +
             `🏷️ TAG: ${tagList || ''}`;
 } else {
   // Lời nhắc buổi sáng (có tag)
