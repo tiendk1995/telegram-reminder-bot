@@ -57,10 +57,10 @@ if (testType === 'evening') {
 
   const tagList = usernames.join(' ');
 
-  message = `🚚 <b>BOOK XE GIAO NGÀY HÔM SAU (THỬ NGHIỆM)</b>\n\n` +
-            `Cơ cấu xe có NVGH đi cùng: …… xe\n` +
-            `👨💼 Xe có FL đi cùng: …… xe\n\n` +
-            `📊 Tổng số xe cần book: …… xe\n\n` +
+  message = `🚚 <b>BOOK XE NGÀY MAI (THỬ NGHIỆM)</b>\n\n` +
+            `🚛 NVGH: …… xe\n` +
+            `👨💼 FL: …… xe\n\n` +
+            `📊 Tổng book: …… xe\n\n` +
             `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
 } else if (testType === 'night') {
   // Lời nhắc ca đêm (có tag riêng)

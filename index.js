@@ -81,10 +81,10 @@ function generateAfternoonReminderMessage() {
 
   const tagList = usernames.join(' ');
 
-  return `🚚 <b>BOOK XE GIAO NGÀY HÔM SAU</b>\n\n` +
-         `🚛 Xe có NVGH đi cùng: …… xe\n` +
-         `👨💼 Xe có FL đi cùng: …… xe\n\n` +
-         `📊 Tổng số xe cần book: …… xe\n\n` +
+  return `🚚 <b>BOOK XE NGÀY MAI</b>\n\n` +
+         `🚛 NVGH: …… xe\n` +
+         `👨💼 FL: …… xe\n\n` +
+         `📊 Tổng book: …… xe\n\n` +
          `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
 }
 
