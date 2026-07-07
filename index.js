@@ -58,15 +58,15 @@ function generateMorningReminderMessage() {
   const tagList = usernames.join(' ');
 
   return `🚚 <b>BÁO CÁO CA SÁNG</b>\n\n` +
-         `Vui lòng cập nhật các nội dung sau:\n\n` +
-         `1. Nhân sự\n` +
-         `👥 Số nhân sự đi làm / Tổng số nhân sự\n\n` +
-         `2. Lái xe\n` +
-         `Cấu hình số lượng lái xe thực tế / Tổng số lái xe đã book\n\n` +
-         `3. FL\n` +
-         `📦 Số lượng FL đi làm / Tổng số FL đã book\n\n` +
-         `4. Đơn tồn\n` +
-         `📋 Tổng số đơn chưa được gán\n\n` +
+         `Vui lòng cập nhật:\n\n` +
+         `1️⃣ Nhân sự\n` +
+         `👥 Đi làm / Tổng\n\n` +
+         `2️⃣ Lái xe\n` +
+         `🚛 Thực tế / Đã book\n\n` +
+         `3️⃣ FL\n` +
+         `📦 Đi làm / Đã book\n\n` +
+         `4️⃣ Đơn tồn\n` +
+         `📋 Chưa gán: …… đơn\n\n` +
          `🏷️ TAG: ${tagList || ''}`;
 }
 
