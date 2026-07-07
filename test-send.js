@@ -93,16 +93,16 @@ if (testType === 'evening') {
 
   const tagList = usernames.join(' ');
 
-  message = `🚚 <b>BÁO CÁO CA SÁNG (THỬ NGHIỆM)</b>\n\n` +
-            `Vui lòng cập nhật:\n\n` +
-            `1️⃣ Nhân sự\n` +
-            `👥 Đi làm / Tổng\n\n` +
-            `2️⃣ Lái xe\n` +
-            `🚛 Thực tế / Đã book\n\n` +
-            `3️⃣ FL\n` +
-            `📦 Đi làm / Đã book\n\n` +
-            `4️⃣ Đơn tồn\n` +
-            `📋 Chưa gán: …… đơn\n\n` +
+  message = `🚚 <b>BÁO CÁO CA SÁNG (THỬ NGHIỆM)</b>\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `1️⃣ <b>NHÂN SỰ</b>\n` +
+            `↳ 👥 Đi làm: ...... | Tổng: ......\n\n` +
+            `2️⃣ <b>LÁI XE</b>\n` +
+            `↳ 🚛 Thực tế: ...... | Đã book: ......\n\n` +
+            `3️⃣ <b>FL</b>\n` +
+            `↳ 📦 Đi làm: ...... | Đã book: ......\n\n` +
+            `4️⃣ <b>ĐƠN TỒN</b>\n` +
+            `↳ 📋 Chưa gán: ...... đơn\n\n` +
             `🏷️ TAG: ${tagList || ''}`;
 }
 
