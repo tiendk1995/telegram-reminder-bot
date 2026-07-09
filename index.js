@@ -219,12 +219,46 @@ async function sendEveningPickupReport(targetChatId, statusCallback) {
         reportText = generateEveningReminderMessage();
       }
 
+      // Bang anh xa ten tren GHN sang Telegram ID (so) hoac Username (chu) de tag
+      const staffMapping = {
+        "Nguyễn Như Hà": "1748264109",
+        "Nguyễn Cao Sơn": "8414659971",
+        "Lưu Thiên Kiệt": "7316177616",
+        "Hà Tuấn Đạt": "5245179531",
+        "Nguyễn Tiến Thành": "1478287224",
+        "Nguyễn tiến Thành": "1478287224",
+        "Nghiêm Tuấn Hiệp": "1646953895",
+        "Vũ Thế Sơn": "1617730207",
+        "Tiến Nam": "589962464",
+        "Nguyễn Trung Kiên": "7304483491",
+        "nguyễn trung kiên": "7304483491",
+        "Nguyễn Xuân Hùng": "8711123602",
+        "nguyễn xuân hùng": "8711123602",
+        "Nguyễn Thị Huyền": "719990341",
+        "nguyễn thị huyền": "719990341"
+      };
+
+      let finalReport = reportText;
+      for (const [ghnName, tgIdentifier] of Object.entries(staffMapping)) {
+        if (tgIdentifier && tgIdentifier.trim() !== '') {
+          const val = tgIdentifier.trim();
+          if (/^\d+$/.test(val)) {
+            // Neu la ID dang so: Tao the HTML tag an
+            finalReport = finalReport.split(`<b>${ghnName}</b>`).join(`<a href="tg://user?id=${val}">${ghnName}</a>`);
+          } else {
+            // Neu la Username dang chu: Chem them @username
+            const usernameFormatted = val.startsWith('@') ? val : `@${val}`;
+            finalReport = finalReport.split(`<b>${ghnName}</b>`).join(`<b>${ghnName}</b> (${usernameFormatted})`);
+          }
+        }
+      }
+
       if (fs.existsSync(photoPath)) {
         console.log(`Sending report with screenshot to Chat ID: ${targetChatId}`);
-        await bot.sendPhoto(targetChatId, photoPath, { caption: reportText, parse_mode: 'HTML' });
+        await bot.sendPhoto(targetChatId, photoPath, { caption: finalReport, parse_mode: 'HTML' });
       } else {
         console.log(`Sending text-only report to Chat ID: ${targetChatId}`);
-        await bot.sendMessage(targetChatId, reportText, { parse_mode: 'HTML' });
+        await bot.sendMessage(targetChatId, finalReport, { parse_mode: 'HTML' });
       }
       
       console.log('Gui bao cao TI thanh cong!');
