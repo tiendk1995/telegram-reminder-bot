@@ -26,8 +26,11 @@ if (!chatIdMorning || chatIdMorning === 'YOUR_CHAT_ID_HERE') {
   console.error('CẢNH BÁO: TELEGRAM_CHAT_ID chưa được cấu hình chính xác. Hãy dùng script get-chat-id.js để lấy Chat ID nhóm.');
 }
 
-// Khởi tạo bot với chế độ polling (cho phép nhận tin nhắn/lệnh từ người dùng)
-const bot = new TelegramBot(token, { polling: true });
+// Kiểm tra xem có đang chạy trên môi trường Render không
+const isRender = process.env.RENDER === 'true' || process.env.RENDER !== undefined;
+
+// Khởi tạo bot với chế độ polling (chỉ cho phép long-polling nếu không chạy trên Render)
+const bot = new TelegramBot(token, { polling: !isRender });
 
 bot.on('polling_error', (error) => {
   console.error('Lỗi Polling Telegram:', error.message);
@@ -160,22 +163,86 @@ async function sendAfternoonReminder() {
   }
 }
 
-// Hàm gửi tin nhắn nhắc nhở TỐI
-async function sendEveningReminder() {
-  const currentChatId = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
-  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
-    console.error('Không thể gửi nhắc nhở tối vì chưa cấu hình TELEGRAM_CHAT_ID_EVENING trong file .env');
+// Hm gi tin nhn nhc nh TI (Chay python bot de quet GHN va chup anh, sau do gui kem text caption)
+const { exec } = require('child_process');
+const fs = require('fs');
+
+async function sendEveningPickupReport(targetChatId, statusCallback) {
+  if (isRender) {
+    console.log(`[${moment().tz(timezone).format()}] Chạy trên Render: Bỏ qua quét Selenium, gửi tin nhắn nhắc nhở mặc định...`);
+    const message = generateEveningReminderMessage();
+    try {
+      await bot.sendMessage(targetChatId, message, { parse_mode: 'HTML' });
+      console.log('Gửi nhắc nhở mẫu mặc định thành công (chế độ Render)!');
+      if (statusCallback) statusCallback(true, 'Đã gửi nhắc nhở mặc định (Render)');
+    } catch (err) {
+      console.error('Render fallback send failed:', err.message);
+      if (statusCallback) statusCallback(false, `Lỗi gửi tin nhắn Render: ${err.message}`);
+    }
     return;
   }
 
-  const message = generateEveningReminderMessage();
-  try {
-    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở TỐI đến Chat ID: ${currentChatId}...`);
-    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
-    console.log('Gửi tin nhắn nhắc nhở TỐI thành công!');
-  } catch (error) {
-    console.error('Gửi tin nhắn nhắc nhở TỐI thất bại:', error.message);
+  const scriptPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\ghn_bot.py';
+  const reportPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\unfinished_report.txt';
+  const photoPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\collect_money_page.png';
+
+  // Xoa cac file bao cao cu neu co
+  if (fs.existsSync(reportPath)) {
+    try { fs.unlinkSync(reportPath); } catch(e) {}
   }
+  if (fs.existsSync(photoPath)) {
+    try { fs.unlinkSync(photoPath); } catch(e) {}
+  }
+
+  console.log(`[${moment().tz(timezone).format()}] dang chay script quet GHN cho bao cao TI...`);
+  
+  exec(`python "${scriptPath}"`, async (error, stdout, stderr) => {
+    if (error) {
+      console.error('Loi chay python bot:', error.message);
+      if (statusCallback) statusCallback(false, `Lỗi chạy script Python: ${error.message}`);
+      
+      // Fallback gui tin nhan mac dinh neu script loi
+      const message = generateEveningReminderMessage();
+      try {
+        await bot.sendMessage(targetChatId, message, { parse_mode: 'HTML' });
+      } catch (err) {
+        console.error('Fallback send failed:', err.message);
+      }
+      return;
+    }
+
+    try {
+      let reportText = '';
+      if (fs.existsSync(reportPath)) {
+        reportText = fs.readFileSync(reportPath, 'utf8');
+      } else {
+        reportText = generateEveningReminderMessage();
+      }
+
+      if (fs.existsSync(photoPath)) {
+        console.log(`Sending report with screenshot to Chat ID: ${targetChatId}`);
+        await bot.sendPhoto(targetChatId, photoPath, { caption: reportText, parse_mode: 'HTML' });
+      } else {
+        console.log(`Sending text-only report to Chat ID: ${targetChatId}`);
+        await bot.sendMessage(targetChatId, reportText, { parse_mode: 'HTML' });
+      }
+      
+      console.log('Gui bao cao TI thanh cong!');
+      if (statusCallback) statusCallback(true, 'Quét dữ liệu và gửi báo cáo thành công!');
+    } catch (sendErr) {
+      console.error('Failed to send report:', sendErr.message);
+      if (statusCallback) statusCallback(false, `Lỗi gửi tin nhắn Telegram: ${sendErr.message}`);
+    }
+  });
+}
+
+async function sendEveningReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Khng th gi nhc nh ti v cha cu hnh TELEGRAM_CHAT_ID_EVENING trong file .env');
+    return;
+  }
+  await sendEveningPickupReport(currentChatId);
 }
 
 // Hàm gửi tin nhắn nhắc nhở ĐÊM
@@ -291,24 +358,20 @@ bot.onText(/\/test_send_afternoon(@\w+)?$/, async (msg) => {
   }
 });
 
-// Phản hồi lệnh /test_send_evening để chạy thử gửi tin nhắn TỐI
+// Phn hi lnh /test_send_evening  chy th gi tin nhn TI
 bot.onText(/\/test_send_evening(@\w+)?$/, async (msg) => {
   const responseChatId = msg.chat.id;
-  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi tin nhắn nhắc nhở TỐI...');
-  
+  bot.sendMessage(responseChatId, ' Đang chạy thử nghiệm quét dữ liệu GHN và gửi báo cáo TỐI (khoảng 30 giây)...');
+
   const currentChatId = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
   if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
-    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_EVENING trong file .env');
+    bot.sendMessage(responseChatId, ' Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_EVENING trong file .env');
     return;
   }
 
-  const message = generateEveningReminderMessage();
-  try {
-    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
-    bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
-  } catch (error) {
-    bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
-  }
+  await sendEveningPickupReport(currentChatId, (success, statusMsg) => {
+    bot.sendMessage(responseChatId, `Kết quả quét: <b>${statusMsg}</b>`, { parse_mode: 'HTML' });
+  });
 });
 
 // Phản hồi lệnh /test_send_night để chạy thử gửi tin nhắn ĐÊM
