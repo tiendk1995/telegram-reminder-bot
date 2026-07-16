@@ -19,11 +19,13 @@ if (testType === 'evening') {
   targetChatId = chatIdEvening;
 } else if (testType === 'afternoon') {
   targetChatId = chatIdAfternoon;
-} else if (testType === 'night') {
-  targetChatId = chatIdNight;
+} else if (testType === 'night' || testType === 'unreplied_stats') {
+  targetChatId = chatIdAfternoon;
 } else if (testType === 'assigned_orders') {
   targetChatId = chatIdAssignedOrders;
 } else if (testType === 'backlog') {
+  targetChatId = chatIdAfternoon;
+} else if (testType === 'rotation_backlog') {
   targetChatId = chatIdAfternoon;
 }
 
@@ -70,27 +72,91 @@ if (testType === 'evening') {
             `👨💼 FL: …… xe\n\n` +
             `📊 Tổng book: …… xe\n\n` +
             `${tagList ? `Mời các bạn: ${tagList}` : ''}`;
-} else if (testType === 'night') {
-  // Lời nhắc ca đêm (có tag riêng)
-  const usernames = usernamesStrNight
-    .split(',')
-    .map(name => name.trim())
-    .filter(name => name.length > 0)
-    .map(name => name.startsWith('@') ? name : `@${name}`);
+} else if (testType === 'night' || testType === 'unreplied_stats') {
+  const fs = require('fs');
+  const path = require('path');
+  const moment = require('moment-timezone');
+  
+  const historyPath = path.join(__dirname, 'reminder_history.json');
+  const timezone = process.env.TIMEZONE || 'Asia/Ho_Chi_Minh';
+  
+  const startOfWeek = moment().tz(timezone).startOf('isoWeek');
+  const today = moment().tz(timezone);
+  
+  let history = {};
+  if (fs.existsSync(historyPath)) {
+    try { history = JSON.parse(fs.readFileSync(historyPath, 'utf8')); } catch(e) {}
+  }
+  
+  const reportDays = [];
+  let currentDate = startOfWeek.clone();
+  while (currentDate.isSameOrBefore(today, 'day')) {
+    reportDays.push(currentDate.format('YYYY-MM-DD'));
+    currentDate.add(1, 'days');
+  }
 
-  const tagList = usernames.join(' ');
+  const vnDaysOfWeek = {
+    'Monday': 'Thứ Hai',
+    'Tuesday': 'Thứ Ba',
+    'Wednesday': 'Thứ Tư',
+    'Thursday': 'Thứ Năm',
+    'Friday': 'Thứ Sáu',
+    'Saturday': 'Thứ Bảy',
+    'Sunday': 'Chủ Nhật'
+  };
 
-  message = `🚚 <b>BÁO CÁO CA ĐÊM (THỬ NGHIỆM)</b>\n` +
-            `━━━━━━━━━━━━━━━━━━\n` +
-            `1️⃣ <b>HÀNG RỚT LUÂN CHUYỂN</b>\n` +
-            `↳ 📦 Tên layout: ......\n` +
-            `↳ 📢 Đã báo Vận tải & Thảo luận xin xe: ☐ Có / ☐ Chưa\n\n` +
-            `2️⃣ <b>ĐƠN TREO LUÂN CHUYỂN</b>\n` +
-            `↳ 📋 Số đơn: ......\n` +
-            `↳ 📝 Lý do: ......\n\n` +
-            `3️⃣ <b>FL</b>\n` +
-            `↳ 👨💼 Thực tế: ...... | Đã book: ......\n\n` +
-            `🏷️ TAG: ${tagList || ''}`;
+  let unrepliedText = '';
+  let totalSentAllWeek = 0;
+  let totalUnrepliedAllWeek = 0;
+  let violationDaysCount = 0;
+
+  reportDays.forEach(dateStr => {
+    const dayData = history[dateStr] || {};
+    const unrepliedShifts = [];
+    
+    for (const shiftName in dayData) {
+      const item = dayData[shiftName];
+      if (Number(item.chatId) === Number(targetChatId)) {
+        totalSentAllWeek++;
+        if (!item.replied) {
+          unrepliedShifts.push(shiftName);
+          totalUnrepliedAllWeek++;
+        }
+      }
+    }
+
+    if (unrepliedShifts.length > 0) {
+      violationDaysCount++;
+      const displayDayName = vnDaysOfWeek[moment(dateStr, 'YYYY-MM-DD').format('dddd')] || moment(dateStr, 'YYYY-MM-DD').format('dddd');
+      const displayDate = moment(dateStr, 'YYYY-MM-DD').format('DD/MM');
+      
+      unrepliedText += `📅 <b>${displayDayName} (${displayDate})</b>:\n`;
+      unrepliedShifts.forEach(shift => {
+        unrepliedText += ` • ${shift}: ❌ Không trả lời -> <b>Phạt 100k</b>\n`;
+      });
+      unrepliedText += `\n`;
+    }
+  });
+
+  const displayStart = startOfWeek.format('DD/MM/YYYY');
+  const displayEnd = today.format('DD/MM/YYYY');
+  
+  message = `📋 <b>THỐNG KÊ KHÔNG TRẢ LỜI BOT TUẦN QUA</b>\n` +
+            `📅 Tuần: <b>${displayStart} - ${displayEnd}</b>\n\n`;
+            
+  if (totalSentAllWeek === 0) {
+    message += `ℹ️ Không ghi nhận khung giờ nhắc nhở nào được gửi đến nhóm này trong tuần qua.`;
+  } else if (totalUnrepliedAllWeek === 0) {
+    message += `✅ Tuyệt vời! Tuần qua tất cả các khung giờ nhắc nhở đều đã được phản hồi đầy đủ!`;
+  } else {
+    const totalFine = totalUnrepliedAllWeek * 100;
+    message += `📊 <b>TỔNG HỢP VI PHẠM:</b>\n` +
+               `• Số ngày không trả lời: <b>${violationDaysCount} ngày</b>\n` +
+               `• Số lần/ca không trả lời: <b>${totalUnrepliedAllWeek} lần</b>\n` +
+               `• Tổng tiền phạt: <b>${totalFine}.000đ</b>\n\n` +
+               `📝 <b>Danh sách chi tiết:</b>\n` + unrepliedText;
+    message += `⚠️ <i>Yêu cầu các nhân sự nghiêm túc phản hồi đầy đủ các thông báo của bot!</i>`;
+  }
 } else if (testType === 'backlog') {
   const fs = require('fs');
   const path = require('path');
@@ -141,6 +207,61 @@ if (testType === 'evening') {
         })
         .catch((err) => {
           console.error('Lỗi gửi text backlog:', err.message);
+          process.exit(1);
+        });
+    }
+  });
+  return;
+} else if (testType === 'rotation_backlog') {
+  const fs = require('fs');
+  const path = require('path');
+  const { exec } = require('child_process');
+  
+  const scriptPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\get_rotation_backlog.py';
+  const reportPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\rotation_backlog_report.txt';
+  const photoPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\rotation_backlog_page.png';
+  
+  if (fs.existsSync(reportPath)) {
+    try { fs.unlinkSync(reportPath); } catch(e) {}
+  }
+  if (fs.existsSync(photoPath)) {
+    try { fs.unlinkSync(photoPath); } catch(e) {}
+  }
+  
+  console.log('Đang chạy script quét GHN rotation backlog...');
+  exec(`python "${scriptPath}"`, (error, stdout, stderr) => {
+    if (error) {
+      console.error('Lỗi chạy python rotation backlog bot:', error.message);
+      process.exit(1);
+    }
+    
+    if (!fs.existsSync(reportPath)) {
+      console.error('Không tìm thấy file báo cáo rotation_backlog_report.txt');
+      process.exit(1);
+    }
+    
+    const reportText = fs.readFileSync(reportPath, 'utf8');
+    const bot = new TelegramBot(token, { polling: false });
+    
+    console.log('Đang gửi tin nhắn...');
+    if (fs.existsSync(photoPath)) {
+      bot.sendPhoto(targetChatId, photoPath, { caption: reportText, parse_mode: 'HTML' })
+        .then((resMsg) => {
+          console.log(`✅ GỬI TIN NHẮN THỬ NGHIỆM ROTATION BACKLOG THÀNH CÔNG!`);
+          process.exit(0);
+        })
+        .catch((err) => {
+          console.error('Lỗi gửi ảnh rotation backlog:', err.message);
+          process.exit(1);
+        });
+    } else {
+      bot.sendMessage(targetChatId, reportText, { parse_mode: 'HTML' })
+        .then((resMsg) => {
+          console.log(`✅ GỬI TIN NHẮN THỬ NGHIỆM ROTATION BACKLOG THÀNH CÔNG!`);
+          process.exit(0);
+        })
+        .catch((err) => {
+          console.error('Lỗi gửi text rotation backlog:', err.message);
           process.exit(1);
         });
     }

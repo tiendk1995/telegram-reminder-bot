@@ -3,6 +3,63 @@ const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
 const moment = require('moment-timezone');
 const path = require('path');
+const fs = require('fs');
+
+const historyPath = path.join(__dirname, 'reminder_history.json');
+
+function loadHistory() {
+  if (fs.existsSync(historyPath)) {
+    try {
+      return JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+}
+
+function saveHistory(history) {
+  try {
+    fs.writeFileSync(historyPath, JSON.stringify(history, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Failed to save history:', e);
+  }
+}
+
+function recordReminderSent(shiftName, chatId) {
+  const history = loadHistory();
+  const today = moment().tz(timezone).format('YYYY-MM-DD');
+  if (!history[today]) {
+    history[today] = {};
+  }
+  history[today][shiftName] = {
+    sent: true,
+    sentTime: moment().tz(timezone).format('HH:mm:ss'),
+    replied: false,
+    chatId: Number(chatId)
+  };
+  saveHistory(history);
+}
+
+function recordMessageReceived(chatId) {
+  const history = loadHistory();
+  const today = moment().tz(timezone).format('YYYY-MM-DD');
+  if (history[today]) {
+    let updated = false;
+    for (const shiftName in history[today]) {
+      const item = history[today][shiftName];
+      if (Number(item.chatId) === Number(chatId) && !item.replied) {
+        item.replied = true;
+        item.replyTime = moment().tz(timezone).format('HH:mm:ss');
+        updated = true;
+        console.log(`[History] Marked shift "${shiftName}" as REPLIED in chat ${chatId}`);
+      }
+    }
+    if (updated) {
+      saveHistory(history);
+    }
+  }
+}
 
 // Đọc cấu hình từ .env
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -22,6 +79,8 @@ const cronTimeSundayStats = process.env.CRON_TIME_SUNDAY_STATS || '5 23 * * 0';
 const cronTimeSundayRegistration = process.env.CRON_TIME_SUNDAY_REGISTRATION || '0 15 * * 0';
 const cronTimeAssignedOrders = process.env.CRON_TIME_ASSIGNED_ORDERS || '30 23 * * *';
 const cronTimeBacklog = process.env.CRON_TIME_BACKLOG || '30 10 * * *';
+const cronTimeRotationBacklog = process.env.CRON_TIME_ROTATION_BACKLOG || '0 14 * * *';
+const cronTimeWeeklyUnreplied = process.env.CRON_TIME_WEEKLY_UNREPLIED || '0 21 * * 0';
 
 
 // Kiểm tra xem cấu hình đã hợp lệ chưa
@@ -72,10 +131,11 @@ console.log(`Múi giờ hoạt động: ${timezone}`);
 console.log(`Lịch gửi SÁNG (10h00): ${cronTimeMorning} (Nhóm ID: ${chatIdMorning})`);
 console.log(`Lịch gửi CHIỀU (16h30): ${cronTimeAfternoon} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Lịch gửi TỐI (20h00): ${cronTimeEvening} (Nhóm ID: ${chatIdEvening})`);
-console.log(`Lịch gửi ĐÊM (01h00): ${cronTimeNight} (Nhóm ID: ${chatIdNight})`);
+console.log(`Lịch gửi THỐNG KÊ KHÔNG TRẢ LỜI BOT (Chủ Nhật 21h00): ${cronTimeWeeklyUnreplied} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Lịch gửi ĐĂNG KÝ LỊCH (Chủ Nhật 15h00): ${cronTimeSundayRegistration} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Lịch gửi ĐƠN GÁN (23h30): ${cronTimeAssignedOrders} (Nhóm ID: ${chatIdAssignedOrders})`);
 console.log(`Lịch gửi BACKLOG (10h30): ${cronTimeBacklog} (Nhóm ID: ${chatIdAfternoon})`);
+console.log(`Lịch gửi BACKLOG LUÂN CHUYỂN (14h00): ${cronTimeRotationBacklog} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Thời gian hiện tại của hệ thống bot: ${moment().tz(timezone).format('YYYY-MM-DD HH:mm:ss')}`);
 
 
@@ -134,28 +194,92 @@ function generateEveningReminderMessage() {
          `Xin cảm ơn mọi người đã phối hợp!`;
 }
 
-// Hàm sinh nội dung tin nhắn nhắc nhở ĐÊM (có tag riêng)
-function generateNightReminderMessage() {
-  const usernamesStr = process.env.EMPLOYEE_USERNAMES_NIGHT || '';
-  const usernames = usernamesStr
-    .split(',')
-    .map(name => name.trim())
-    .filter(name => name.length > 0)
-    .map(name => name.startsWith('@') ? name : `@${name}`);
+// Hàm thống kê không trả lời bot TUẦN
+async function sendWeeklyUnrepliedStats(targetChatId, startStr, endStr, statusCallback) {
+  const history = loadHistory();
+  
+  const startDate = moment(startStr, 'YYYY-MM-DD');
+  const endDate = moment(endStr, 'YYYY-MM-DD');
+  
+  const reportDays = [];
+  let currentDate = startDate.clone();
+  while (currentDate.isSameOrBefore(endDate)) {
+    reportDays.push(currentDate.format('YYYY-MM-DD'));
+    currentDate.add(1, 'days');
+  }
 
-  const tagList = usernames.join(' ');
+  const vnDaysOfWeek = {
+    'Monday': 'Thứ Hai',
+    'Tuesday': 'Thứ Ba',
+    'Wednesday': 'Thứ Tư',
+    'Thursday': 'Thứ Năm',
+    'Friday': 'Thứ Sáu',
+    'Saturday': 'Thứ Bảy',
+    'Sunday': 'Chủ Nhật'
+  };
 
-  return `🚚 <b>BÁO CÁO CA ĐÊM</b>\n` +
-         `━━━━━━━━━━━━━━━━━━\n` +
-         `1️⃣ <b>HÀNG RỚT LUÂN CHUYỂN</b>\n` +
-         `↳ 📦 Tên layout: ......\n` +
-         `↳ 📢 Đã báo Vận tải & Thảo luận xin xe: ☐ Có / ☐ Chưa\n\n` +
-         `2️⃣ <b>ĐƠN TREO LUÂN CHUYỂN</b>\n` +
-         `↳ 📋 Số đơn: ......\n` +
-         `↳ 📝 Lý do: ......\n\n` +
-         `3️⃣ <b>FL</b>\n` +
-         `↳ 👨💼 Thực tế: ...... | Đã book: ......\n\n` +
-         `🏷️ TAG: ${tagList || ''}`;
+  let unrepliedText = '';
+  let totalSentAllWeek = 0;
+  let totalUnrepliedAllWeek = 0;
+  let violationDaysCount = 0;
+
+  reportDays.forEach(dateStr => {
+    const dayData = history[dateStr] || {};
+    const unrepliedShifts = [];
+    
+    for (const shiftName in dayData) {
+      const item = dayData[shiftName];
+      if (Number(item.chatId) === Number(targetChatId)) {
+        totalSentAllWeek++;
+        if (!item.replied) {
+          unrepliedShifts.push(shiftName);
+          totalUnrepliedAllWeek++;
+        }
+      }
+    }
+
+    if (unrepliedShifts.length > 0) {
+      violationDaysCount++;
+      const displayDayName = vnDaysOfWeek[moment(dateStr, 'YYYY-MM-DD').format('dddd')] || moment(dateStr, 'YYYY-MM-DD').format('dddd');
+      const displayDate = moment(dateStr, 'YYYY-MM-DD').format('DD/MM');
+      
+      unrepliedText += `📅 <b>${displayDayName} (${displayDate})</b>:\n`;
+      unrepliedShifts.forEach(shift => {
+        unrepliedText += ` • ${shift}: ❌ Không trả lời -> <b>Phạt 100k</b>\n`;
+      });
+      unrepliedText += `\n`;
+    }
+  });
+
+  const displayStart = startDate.format('DD/MM/YYYY');
+  const displayEnd = endDate.format('DD/MM/YYYY');
+  
+  let message = `📋 <b>THỐNG KÊ KHÔNG TRẢ LỜI BOT TUẦN QUA</b>\n` +
+                `📅 Tuần: <b>${displayStart} - ${displayEnd}</b>\n\n`;
+
+  if (totalSentAllWeek === 0) {
+    message += `ℹ️ Không ghi nhận khung giờ nhắc nhở nào được gửi đến nhóm này trong tuần qua.`;
+  } else if (totalUnrepliedAllWeek === 0) {
+    message += `✅ Tuyệt vời! Tuần qua tất cả các khung giờ nhắc nhở đều đã được phản hồi đầy đủ!`;
+  } else {
+    const totalFine = totalUnrepliedAllWeek * 100;
+    message += `📊 <b>TỔNG HỢP VI PHẠM:</b>\n` +
+               `• Số ngày không trả lời: <b>${violationDaysCount} ngày</b>\n` +
+               `• Số lần/ca không trả lời: <b>${totalUnrepliedAllWeek} lần</b>\n` +
+               `• Tổng tiền phạt: <b>${totalFine}.000đ</b>\n\n` +
+               `📝 <b>Danh sách chi tiết:</b>\n` + unrepliedText;
+    message += `⚠️ <i>Yêu cầu các nhân sự nghiêm túc phản hồi đầy đủ các thông báo của bot!</i>`;
+  }
+
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Gửi thống kê tuần không trả lời đến Chat ID: ${targetChatId}...`);
+    await bot.sendMessage(targetChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi thống kê tuần không trả lời thành công!');
+    if (statusCallback) statusCallback(true, 'Gửi thống kê tuần không trả lời thành công!');
+  } catch (error) {
+    console.error('Gửi thống kê tuần không trả lời thất bại:', error.message);
+    if (statusCallback) statusCallback(false, `Lỗi gửi tin nhắn Telegram: ${error.message}`);
+  }
 }
 
 // Hàm gửi tin nhắn nhắc nhở SÁNG
@@ -171,6 +295,7 @@ async function sendMorningReminder() {
     console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở SÁNG đến Chat ID: ${currentChatId}...`);
     await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
     console.log('Gửi tin nhắn nhắc nhở SÁNG thành công!');
+    recordReminderSent('SÁNG (10h00)', currentChatId);
   } catch (error) {
     console.error('Gửi tin nhắn nhắc nhở sáng thất bại:', error.message);
   }
@@ -189,6 +314,7 @@ async function sendAfternoonReminder() {
     console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở CHIỀU đến Chat ID: ${currentChatId}...`);
     await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
     console.log('Gửi tin nhắn nhắc nhở CHIỀU thành công!');
+    recordReminderSent('CHIỀU (16h30)', currentChatId);
   } catch (error) {
     console.error('Gửi tin nhắn nhắc nhở CHIỀU thất bại:', error.message);
   }
@@ -196,7 +322,6 @@ async function sendAfternoonReminder() {
 
 // Hm gi tin nhn nhc nh TI (Chay python bot de quet GHN va chup anh, sau do gui kem text caption)
 const { exec } = require('child_process');
-const fs = require('fs');
 
 async function sendEveningPickupReport(targetChatId, statusCallback) {
   if (isRender) {
@@ -329,6 +454,8 @@ async function sendEveningPickupReport(targetChatId, statusCallback) {
         await bot.sendMessage(targetChatId, finalReport, { parse_mode: 'HTML' });
       }
       
+      recordReminderSent('TỐI (20h00)', targetChatId);
+      
       console.log('Gui bao cao TI thanh cong!');
       
       // MỚI: Nếu đang là khung giờ 23h, thực hiện lưu lịch sử chưa kết thúc App
@@ -354,23 +481,7 @@ async function sendEveningReminder() {
   await sendEveningPickupReport(currentChatId);
 }
 
-// Hàm gửi tin nhắn nhắc nhở ĐÊM
-async function sendNightReminder() {
-  const currentChatId = process.env.TELEGRAM_CHAT_ID_NIGHT || process.env.TELEGRAM_CHAT_ID;
-  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
-    console.error('Không thể gửi nhắc nhở đêm vì chưa cấu hình TELEGRAM_CHAT_ID_NIGHT trong file .env');
-    return;
-  }
-
-  const message = generateNightReminderMessage();
-  try {
-    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở ĐÊM đến Chat ID: ${currentChatId}...`);
-    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
-    console.log('Gửi tin nhắn nhắc nhở ĐÊM thành công!');
-  } catch (error) {
-    console.error('Gửi tin nhắn nhắc nhở ĐÊM thất bại:', error.message);
-  }
-}
+// Đã thay thế báo cáo ca đêm bằng Thống kê không trả lời bot (sendDailyUnrepliedStats)
 
 // Hàm lưu lịch sử nhân viên chưa kết thúc App lúc 23h
 function saveAppUnfinishedHistory(jsonPath) {
@@ -714,6 +825,7 @@ async function sendDailyAssignedOrdersReport(targetChatId, statusCallback) {
 
       console.log(`Gửi báo cáo đơn gán đến Chat ID: ${targetChatId}`);
       await bot.sendMessage(targetChatId, finalReport, { parse_mode: 'HTML' });
+      recordReminderSent('ĐƠN GÁN (23h30)', targetChatId);
       console.log('Gửi báo cáo đơn gán thành công!');
       
       if (statusCallback) statusCallback(true, 'Gửi báo cáo đơn gán thành công!');
@@ -769,10 +881,68 @@ async function sendDailyBacklogReport(targetChatId, statusCallback) {
         await bot.sendMessage(targetChatId, reportText, { parse_mode: 'HTML' });
       }
       
+      recordReminderSent('BACKLOG (10h30)', targetChatId);
+      
       console.log('Gửi báo cáo backlog thành công!');
       if (statusCallback) statusCallback(true, 'Gửi báo cáo backlog thành công!');
     } catch (sendErr) {
       console.error('Gửi báo cáo backlog thất bại:', sendErr.message);
+      if (statusCallback) statusCallback(false, `Lỗi gửi tin nhắn Telegram: ${sendErr.message}`);
+    }
+  });
+}
+
+async function sendDailyRotationBacklogReport(targetChatId, statusCallback) {
+  if (isRender) {
+    console.log(`[${moment().tz(timezone).format()}] Chạy trên Render: Bỏ qua quét Selenium rotation backlog.`);
+    if (statusCallback) statusCallback(false, 'Render không hỗ trợ chạy Selenium quét rotation backlog');
+    return;
+  }
+
+  const scriptPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\get_rotation_backlog.py';
+  const reportPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\rotation_backlog_report.txt';
+  const photoPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\rotation_backlog_page.png';
+
+  // Xóa file báo cáo cũ nếu có
+  if (fs.existsSync(reportPath)) {
+    try { fs.unlinkSync(reportPath); } catch(e) {}
+  }
+  if (fs.existsSync(photoPath)) {
+    try { fs.unlinkSync(photoPath); } catch(e) {}
+  }
+
+  console.log(`[${moment().tz(timezone).format()}] Đang chạy script quét GHN rotation backlog...`);
+  
+  exec(`python "${scriptPath}"`, async (error, stdout, stderr) => {
+    if (error) {
+      console.error('Lỗi chạy python rotation backlog bot:', error.message);
+      if (statusCallback) statusCallback(false, `Lỗi chạy script Python: ${error.message}`);
+      return;
+    }
+
+    try {
+      if (!fs.existsSync(reportPath)) {
+        console.error('Không tìm thấy file báo cáo rotation_backlog_report.txt');
+        if (statusCallback) statusCallback(false, 'Không tìm thấy file kết quả báo cáo');
+        return;
+      }
+
+      const reportText = fs.readFileSync(reportPath, 'utf8');
+
+      if (fs.existsSync(photoPath)) {
+        console.log(`Gửi báo cáo rotation backlog kèm ảnh đến Chat ID: ${targetChatId}`);
+        await bot.sendPhoto(targetChatId, photoPath, { caption: reportText, parse_mode: 'HTML' });
+      } else {
+        console.log(`Gửi báo cáo rotation backlog dạng text đến Chat ID: ${targetChatId}`);
+        await bot.sendMessage(targetChatId, reportText, { parse_mode: 'HTML' });
+      }
+      
+      recordReminderSent('BACKLOG LUÂN CHUYỂN (14h00)', targetChatId);
+      
+      console.log('Gửi báo cáo rotation backlog thành công!');
+      if (statusCallback) statusCallback(true, 'Gửi báo cáo rotation backlog thành công!');
+    } catch (sendErr) {
+      console.error('Gửi báo cáo rotation backlog thất bại:', sendErr.message);
       if (statusCallback) statusCallback(false, `Lỗi gửi tin nhắn Telegram: ${sendErr.message}`);
     }
   });
@@ -807,10 +977,16 @@ cron.schedule(cronTimeEvening, () => {
   timezone: timezone
 });
 
-// Thiết lập cron job nhắc nhở ĐÊM (01h00 sáng hôm sau)
-cron.schedule(cronTimeNight, () => {
-  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở ĐÊM...`);
-  sendNightReminder();
+// Thiết lập cron job gửi báo cáo THỐNG KÊ KHÔNG TRẢ LỜI BOT hàng tuần (Chủ Nhật lúc 21h00)
+cron.schedule(cronTimeWeeklyUnreplied, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo THỐNG KÊ KHÔNG TRẢ LỜI BOT TUẦN QUA...`);
+  const startOfWeek = moment().tz(timezone).startOf('isoWeek').format('YYYY-MM-DD');
+  const endOfWeek = moment().tz(timezone).endOf('isoWeek').format('YYYY-MM-DD');
+  
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (currentChatId && currentChatId !== 'YOUR_CHAT_ID_HERE') {
+    sendWeeklyUnrepliedStats(currentChatId, startOfWeek, endOfWeek);
+  }
 }, {
   scheduled: true,
   timezone: timezone
@@ -861,6 +1037,20 @@ cron.schedule(cronTimeBacklog, () => {
   timezone: timezone
 });
 
+// Thiết lập cron job gửi báo cáo BACKLOG LUÂN CHUYỂN HÀNG NGÀY (14h00)
+cron.schedule(cronTimeRotationBacklog, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo BACKLOG LUÂN CHUYỂN HÀNG NGÀY...`);
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi báo cáo rotation backlog vì chưa cấu hình Chat ID phù hợp trong file .env');
+    return;
+  }
+  sendDailyRotationBacklogReport(currentChatId);
+}, {
+  scheduled: true,
+  timezone: timezone
+});
+
 
 // Phản hồi lệnh /status để kiểm tra xem bot còn sống hay không
 bot.onText(/\/status(@\w+)?$/, (msg) => {
@@ -872,17 +1062,19 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
                     `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
                     `• Hẹn giờ CHIỀU (16h30): <code>${cronTimeAfternoon}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
                     `• Hẹn giờ TỐI (20h00): <code>${cronTimeEvening}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n` +
-                    `• Hẹn giờ ĐÊM (01h00): <code>${cronTimeNight}</code> (Nhóm ID: <code>${chatIdNight}</code>)\n` +
+                    `• Hẹn giờ THỐNG KÊ KHÔNG TRẢ LỜI BOT (Chủ Nhật 21h00): <code>${cronTimeWeeklyUnreplied}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
                     `• Hẹn giờ ĐƠN GÁN (23h30): <code>${cronTimeAssignedOrders}</code> (Nhóm ID: <code>${chatIdAssignedOrders}</code>)\n` +
                     `• Hẹn giờ THỐNG KÊ TUẦN (Chủ Nhật): <code>${cronTimeSundayStats}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n` +
                     `• Hẹn giờ ĐĂNG KÝ LỊCH (Chủ Nhật): <code>${cronTimeSundayRegistration}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
-                    `• Hẹn giờ BACKLOG (10h30): <code>${cronTimeBacklog}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n\n` +
+                    `• Hẹn giờ BACKLOG (10h30): <code>${cronTimeBacklog}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
+                    `• Hẹn giờ BACKLOG LUÂN CHUYỂN (14h00): <code>${cronTimeRotationBacklog}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n\n` +
                     `• Thử nghiệm SÁNG: /test_send\n` +
                     `• Thử nghiệm CHIỀU: /test_send_afternoon\n` +
                     `• Thử nghiệm TỐI: /test_send_evening\n` +
-                    `• Thử nghiệm ĐÊM: /test_send_night\n` +
+                    `• Thử nghiệm THỐNG KÊ KHÔNG TRẢ LỜI BOT: /test_send_unreplied_stats\n` +
                     `• Thử nghiệm ĐƠN GÁN: /test_send_assigned_orders\n` +
                     `• Thử nghiệm BACKLOG: /test_send_backlog\n` +
+                    `• Thử nghiệm BACKLOG LUÂN CHUYỂN: /test_send_rotation_backlog\n` +
                     `• Thử nghiệm THỐNG KÊ TUẦN: /test_send_stats\n` +
                     `• Thử nghiệm ĐĂNG KÝ LỊCH: /test_send_registration`;
   
@@ -924,6 +1116,22 @@ bot.onText(/\/test_send_backlog(@\w+)?$/, async (msg) => {
 
   await sendDailyBacklogReport(currentChatId, (success, statusMsg) => {
     bot.sendMessage(responseChatId, `Kết quả quét backlog: <b>${statusMsg}</b>`, { parse_mode: 'HTML' });
+  });
+});
+
+// Phản hồi lệnh /test_send_rotation_backlog để chạy thử gửi báo cáo backlog luân chuyển hàng ngày
+bot.onText(/\/test_send_rotation_backlog(@\w+)?$/, async (msg) => {
+  const responseChatId = msg.chat.id;
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm quét dữ liệu GHN và gửi báo cáo BACKLOG LUÂN CHUYỂN (khoảng 30 giây)...');
+
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON trong file .env');
+    return;
+  }
+
+  await sendDailyRotationBacklogReport(currentChatId, (success, statusMsg) => {
+    bot.sendMessage(responseChatId, `Kết quả quét backlog luân chuyển: <b>${statusMsg}</b>`, { parse_mode: 'HTML' });
   });
 });
 
@@ -1014,24 +1222,30 @@ bot.onText(/\/test_send_evening(@\w+)?$/, async (msg) => {
   });
 });
 
-// Phản hồi lệnh /test_send_night để chạy thử gửi tin nhắn ĐÊM
-bot.onText(/\/test_send_night(@\w+)?$/, async (msg) => {
+// Phản hồi lệnh /test_send_unreplied_stats hoặc /test_send_night để chạy thử gửi thống kê không trả lời bot tuần này
+bot.onText(/\/(test_send_unreplied_stats|test_send_night)(@\w+)?$/, async (msg) => {
   const responseChatId = msg.chat.id;
-  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi tin nhắn nhắc nhở ĐÊM...');
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm tổng hợp THỐNG KÊ KHÔNG TRẢ LỜI BOT của tuần này (từ Thứ Hai đến hiện tại)...');
   
-  const currentChatId = process.env.TELEGRAM_CHAT_ID_NIGHT || process.env.TELEGRAM_CHAT_ID;
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
   if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
-    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_NIGHT trong file .env');
+    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON trong file .env');
     return;
   }
 
-  const message = generateNightReminderMessage();
-  try {
-    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
-    bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
-  } catch (error) {
-    bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
-  }
+  const startOfWeek = moment().tz(timezone).startOf('isoWeek').format('YYYY-MM-DD');
+  const today = moment().tz(timezone).format('YYYY-MM-DD');
+  await sendWeeklyUnrepliedStats(currentChatId, startOfWeek, today, (success, statusMsg) => {
+    bot.sendMessage(responseChatId, `Kết quả gửi: <b>${statusMsg}</b>`, { parse_mode: 'HTML' });
+  });
+});
+
+// Lắng nghe tất cả các tin nhắn để ghi nhận phản hồi của nhân viên
+bot.on('message', (msg) => {
+  if (msg.from && msg.from.is_bot) return;
+  if (msg.text && msg.text.startsWith('/')) return;
+
+  recordMessageReceived(msg.chat.id);
 });
 
 // Tạo một HTTP server đơn giản để Render có thể ping kiểm tra trạng thái hoạt động (Health Check)
