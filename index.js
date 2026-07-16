@@ -2,6 +2,7 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
 const moment = require('moment-timezone');
+const path = require('path');
 
 // Đọc cấu hình từ .env
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -9,12 +10,19 @@ const chatIdMorning = process.env.TELEGRAM_CHAT_ID;
 const chatIdAfternoon = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
 const chatIdEvening = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
 const chatIdNight = process.env.TELEGRAM_CHAT_ID_NIGHT || process.env.TELEGRAM_CHAT_ID;
+const chatIdAssignedOrders = process.env.TELEGRAM_CHAT_ID_ASSIGNED_ORDERS || process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
+
 const timezone = process.env.TIMEZONE || 'Asia/Ho_Chi_Minh';
 
 const cronTimeMorning = process.env.CRON_TIME || '0 10 * * *';
 const cronTimeAfternoon = process.env.CRON_TIME_AFTERNOON || '30 16 * * *';
 const cronTimeEvening = process.env.CRON_TIME_EVENING || '0 20 * * *';
 const cronTimeNight = process.env.CRON_TIME_NIGHT || '0 1 * * *';
+const cronTimeSundayStats = process.env.CRON_TIME_SUNDAY_STATS || '5 23 * * 0';
+const cronTimeSundayRegistration = process.env.CRON_TIME_SUNDAY_REGISTRATION || '0 15 * * 0';
+const cronTimeAssignedOrders = process.env.CRON_TIME_ASSIGNED_ORDERS || '30 23 * * *';
+const cronTimeBacklog = process.env.CRON_TIME_BACKLOG || '30 10 * * *';
+
 
 // Kiểm tra xem cấu hình đã hợp lệ chưa
 if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
@@ -29,11 +37,30 @@ if (!chatIdMorning || chatIdMorning === 'YOUR_CHAT_ID_HERE') {
 // Kiểm tra xem có đang chạy trên môi trường Render không
 const isRender = process.env.RENDER === 'true' || process.env.RENDER !== undefined;
 
-// Khởi tạo bot với chế độ polling (chỉ cho phép long-polling nếu không chạy trên Render)
-const bot = new TelegramBot(token, { polling: !isRender });
+// Khởi tạo bot với chế độ polling kèm Keep-Alive để tránh lỗi ECONNRESET
+const bot = new TelegramBot(token, {
+  polling: !isRender,
+  request: {
+    agentOptions: {
+      keepAlive: true,
+      family: 4
+    }
+  }
+});
 
 bot.on('polling_error', (error) => {
-  console.error('Lỗi Polling Telegram:', error.message);
+  const errMsg = error.message || '';
+  if (
+    errMsg.includes('ECONNRESET') || 
+    errMsg.includes('ETIMEDOUT') || 
+    errMsg.includes('ENOTFOUND') || 
+    errMsg.includes('EAI_AGAIN') ||
+    errMsg.includes('socket hang up')
+  ) {
+    console.warn(`[Cảnh báo kết nối] Telegram API tạm thời gián đoạn (${error.message}). Bot đang tự kết nối lại...`);
+  } else {
+    console.error('Lỗi Polling Telegram:', error.message);
+  }
 });
 
 bot.on('error', (error) => {
@@ -46,7 +73,11 @@ console.log(`Lịch gửi SÁNG (10h00): ${cronTimeMorning} (Nhóm ID: ${chatIdM
 console.log(`Lịch gửi CHIỀU (16h30): ${cronTimeAfternoon} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Lịch gửi TỐI (20h00): ${cronTimeEvening} (Nhóm ID: ${chatIdEvening})`);
 console.log(`Lịch gửi ĐÊM (01h00): ${cronTimeNight} (Nhóm ID: ${chatIdNight})`);
+console.log(`Lịch gửi ĐĂNG KÝ LỊCH (Chủ Nhật 15h00): ${cronTimeSundayRegistration} (Nhóm ID: ${chatIdAfternoon})`);
+console.log(`Lịch gửi ĐƠN GÁN (23h30): ${cronTimeAssignedOrders} (Nhóm ID: ${chatIdAssignedOrders})`);
+console.log(`Lịch gửi BACKLOG (10h30): ${cronTimeBacklog} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Thời gian hiện tại của hệ thống bot: ${moment().tz(timezone).format('YYYY-MM-DD HH:mm:ss')}`);
+
 
 // Hàm sinh nội dung tin nhắn nhắc nhở SÁNG và tag nhân viên
 function generateMorningReminderMessage() {
@@ -185,6 +216,7 @@ async function sendEveningPickupReport(targetChatId, statusCallback) {
   const scriptPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\ghn_bot.py';
   const reportPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\unfinished_report.txt';
   const photoPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\collect_money_page.png';
+  const jsonPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\unfinished_staff.json';
 
   // Xoa cac file bao cao cu neu co
   if (fs.existsSync(reportPath)) {
@@ -192,6 +224,9 @@ async function sendEveningPickupReport(targetChatId, statusCallback) {
   }
   if (fs.existsSync(photoPath)) {
     try { fs.unlinkSync(photoPath); } catch(e) {}
+  }
+  if (fs.existsSync(jsonPath)) {
+    try { fs.unlinkSync(jsonPath); } catch(e) {}
   }
 
   console.log(`[${moment().tz(timezone).format()}] dang chay script quet GHN cho bao cao TI...`);
@@ -221,21 +256,54 @@ async function sendEveningPickupReport(targetChatId, statusCallback) {
 
       // Bang anh xa ten tren GHN sang Telegram ID (so) hoac Username (chu) de tag
       const staffMapping = {
-        "Nguyễn Như Hà": "1748264109",
-        "Nguyễn Cao Sơn": "8414659971",
-        "Lưu Thiên Kiệt": "7316177616",
-        "Hà Tuấn Đạt": "5245179531",
-        "Nguyễn Tiến Thành": "1478287224",
-        "Nguyễn tiến Thành": "1478287224",
-        "Nghiêm Tuấn Hiệp": "1646953895",
-        "Vũ Thế Sơn": "1617730207",
-        "Tiến Nam": "589962464",
+        "Lê Viết Lực": "6281487432",
+        "lê viết lực": "6281487432",
+        "Nguyễn Thị Huyền": "719990341",
+        "nguyễn thị huyền": "719990341",
+        "Nguyễn Ngọc Duy": "8403744896",
+        "nguyễn ngọc duy": "8403744896",
+        "Trần Thị Thu Trang": "7708350872",
+        "trần thị thu trang": "7708350872",
         "Nguyễn Trung Kiên": "7304483491",
         "nguyễn trung kiên": "7304483491",
+        "Nguyễn Thị Trang": "3170505",
+        "nguyễn thị trang": "3170505",
+        "Hoàng Quốc Việt": "868743297",
+        "hoàng quốc việt": "868743297",
         "Nguyễn Xuân Hùng": "8711123602",
         "nguyễn xuân hùng": "8711123602",
-        "Nguyễn Thị Huyền": "719990341",
-        "nguyễn thị huyền": "719990341"
+        "Vũ Thế Sơn": "1617730207",
+        "vũ thế sơn": "1617730207",
+        "Nguyễn Như Hà": "1748264109",
+        "nguyễn như hà": "1748264109",
+        "Nguyễn Mạnh Hà": "1725476265",
+        "nguyễn mạnh hà": "1725476265",
+        "Dương Văn Đức": "5600166410",
+        "dương văn đức": "5600166410",
+        "Nghiêm Tuấn Hiệp": "1646953895",
+        "nghiêm tuấn hiệp": "1646953895",
+        "Nguyễn Tuấn Mạnh Đức": "967937134",
+        "nguyễn tuấn mạnh đức": "967937134",
+        "Nguyễn Thế Duy": "7857172639",
+        "nguyễn thế duy": "7857172639",
+        "Nguyễn Văn Linh": "7590771051",
+        "nguyễn văn linh": "7590771051",
+        "Nguyễn Tiến Thành": "1478287224",
+        "nguyễn tiến thành": "1478287224",
+        "Ngô Tiến Nam": "5899662464",
+        "ngô tiến nam": "5899662464",
+        "Tiến Nam": "5899662464",
+        "tiến nam": "5899662464",
+        "Nguyễn Cao Sơn": "8414659971",
+        "nguyễn cao sơn": "8414659971",
+        "Lưu Thiên Kiệt": "7316177616",
+        "lưu thiên kiệt": "7316177616",
+        "Nguyễn Văn Vững": "8709372325",
+        "nguyễn văn vững": "8709372325",
+        "Hà Tuấn Đạt": "5245179531",
+        "hà tuấn đạt": "5245179531",
+        "Lê Đức Anh": "8927608603",
+        "lê đức anh": "8927608603"
       };
 
       let finalReport = reportText;
@@ -262,6 +330,13 @@ async function sendEveningPickupReport(targetChatId, statusCallback) {
       }
       
       console.log('Gui bao cao TI thanh cong!');
+      
+      // MỚI: Nếu đang là khung giờ 23h, thực hiện lưu lịch sử chưa kết thúc App
+      const currentHour = moment().tz(timezone).hour();
+      if (currentHour === 23) {
+        saveAppUnfinishedHistory(jsonPath);
+      }
+      
       if (statusCallback) statusCallback(true, 'Quét dữ liệu và gửi báo cáo thành công!');
     } catch (sendErr) {
       console.error('Failed to send report:', sendErr.message);
@@ -297,7 +372,415 @@ async function sendNightReminder() {
   }
 }
 
+// Hàm lưu lịch sử nhân viên chưa kết thúc App lúc 23h
+function saveAppUnfinishedHistory(jsonPath) {
+  try {
+    if (!fs.existsSync(jsonPath)) {
+      console.warn('Không tìm thấy file unfinished_staff.json để lưu lịch sử.');
+      return;
+    }
+    const rawData = fs.readFileSync(jsonPath, 'utf8');
+    const staffList = JSON.parse(rawData);
+    
+    // Lọc ra những người có unfinished_app === true và lưu tên kèm số lượng đơn
+    const unfinishedData = staffList
+      .filter(item => item.unfinished_app === true)
+      .map(item => ({
+        name: item.name,
+        count: item.unfinished_app_count || 0
+      }));
+      
+    const historyPath = path.join(__dirname, 'app_history.json');
+    let history = {};
+    if (fs.existsSync(historyPath)) {
+      try {
+        history = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+      } catch (err) {
+        console.error('Lỗi phân tích cú pháp app_history.json:', err.message);
+      }
+    }
+    
+    const todayStr = moment().tz(timezone).format('YYYY-MM-DD');
+    history[todayStr] = unfinishedData;
+    
+    // Giới hạn lịch sử lưu tối đa 60 ngày để tránh phình dung lượng file
+    const dates = Object.keys(history).sort();
+    if (dates.length > 60) {
+      const toDelete = dates.slice(0, dates.length - 60);
+      for (const d of toDelete) {
+        delete history[d];
+      }
+    }
+    
+    fs.writeFileSync(historyPath, JSON.stringify(history, null, 2), 'utf8');
+    console.log(`[Lịch sử] Đã lưu danh sách chưa kết thúc App cho ngày ${todayStr}:`, unfinishedData);
+  } catch (error) {
+    console.error('Lỗi khi lưu lịch sử chưa kết thúc App:', error.message);
+  }
+}
+
+// Hàm gửi tin nhắn nhắc nhở ĐĂNG KÝ LỊCH TUẦN MỚI vào chiều Chủ Nhật
+async function sendSundayRegistrationReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở đăng ký vì chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON');
+    return;
+  }
+
+  // Tính toán ngày Thứ Hai và Chủ Nhật của tuần tiếp theo
+  const nextMonday = moment().tz(timezone).add(1, 'days').format('DD/MM');
+  const nextSunday = moment().tz(timezone).add(7, 'days').format('DD/MM');
+
+  const message = `📋 <b>ĐĂNG KÝ LỊCH TUẦN MỚI (Long Biên - Nhóm 1)</b>\n` +
+                  `📅 Thời gian: Từ <b>Thứ Hai ${nextMonday}</b> đến <b>Chủ Nhật ${nextSunday}</b>\n\n` +
+                  `Mời các anh em tranh thủ đăng ký lịch làm việc tuần tiếp theo:\n` +
+                  `• 🚚 <b>NVGH</b> (Nhân viên giao hàng)\n` +
+                  `• 🌅 <b>NVXL SÁNG</b>\n` +
+                  `• 🌆 <b>NVXL CHIỀU</b>\n\n` +
+                  `<i>Mọi người nhanh chóng cập nhật nhé! Xin cảm ơn!</i>`;
+
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi nhắc nhở đăng ký lịch tuần mới đến Chat ID: ${currentChatId}...`);
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi nhắc nhở đăng ký lịch tuần mới thành công!');
+  } catch (error) {
+    console.error('Gửi nhắc nhở đăng ký lịch tuần mới thất bại:', error.message);
+  }
+}
+
+// Hàm gửi báo cáo thống kê tuần vào Chủ Nhật hàng tuần
+async function sendSundayStats() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_EVENING || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi thống kê tuần vì chưa cấu hình TELEGRAM_CHAT_ID_EVENING trong file .env');
+    return;
+  }
+  
+  const historyPath = path.join(__dirname, 'app_history.json');
+  if (!fs.existsSync(historyPath)) {
+    console.log('Không có file lịch sử app_history.json để làm thống kê tuần.');
+    await bot.sendMessage(currentChatId, `📊 <b>THỐNG KÊ TUẦN (Chủ Nhật)</b>\n\nChưa có dữ liệu lịch sử để thực hiện thống kê.`, { parse_mode: 'HTML' });
+    return;
+  }
+  
+  let history = {};
+  try {
+    history = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+  } catch (e) {
+    console.error('Lỗi đọc file app_history.json:', e.message);
+    await bot.sendMessage(currentChatId, `📊 <b>THỐNG KÊ TUẦN (Chủ Nhật)</b>\n\nLỗi hệ thống khi đọc dữ liệu lịch sử.`, { parse_mode: 'HTML' });
+    return;
+  }
+  
+  // Lấy các ngày của tuần hiện tại (Từ Thứ 2 đến Chủ Nhật)
+  // Vì job chạy lúc 23h05 tối Chủ Nhật, nên ngày hiện tại đang là Chủ Nhật.
+  const today = moment().tz(timezone);
+  const weekDates = [];
+  
+  for (let i = 0; i < 7; i++) {
+    const dStr = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
+    weekDates.push(dStr);
+  }
+  weekDates.reverse();
+  
+  const counts = {};
+  const details = {};
+  
+  for (const dStr of weekDates) {
+    const list = history[dStr];
+    if (list && Array.isArray(list)) {
+      for (const item of list) {
+        let name = '';
+        let count = 0;
+        if (typeof item === 'string') {
+          name = item;
+        } else if (item && typeof item === 'object') {
+          name = item.name;
+          count = item.count;
+        }
+        
+        if (name) {
+          counts[name] = (counts[name] || 0) + 1;
+          if (!details[name]) details[name] = [];
+          
+          const countStr = count > 0 ? ` (${count} ĐH)` : '';
+          details[name].push(`${moment(dStr).format('DD/MM')}${countStr}`);
+        }
+      }
+    }
+  }
+  
+  const staffMapping = {
+    "Lê Viết Lực": "6281487432",
+    "lê viết lực": "6281487432",
+    "Nguyễn Thị Huyền": "719990341",
+    "nguyễn thị huyền": "719990341",
+    "Nguyễn Ngọc Duy": "8403744896",
+    "nguyễn ngọc duy": "8403744896",
+    "Trần Thị Thu Trang": "7708350872",
+    "trần thị thu trang": "7708350872",
+    "Nguyễn Trung Kiên": "7304483491",
+    "nguyễn trung kiên": "7304483491",
+    "Nguyễn Thị Trang": "3170505",
+    "nguyễn thị trang": "3170505",
+    "Hoàng Quốc Việt": "868743297",
+    "hoàng quốc việt": "868743297",
+    "Nguyễn Xuân Hùng": "8711123602",
+    "nguyễn xuân hùng": "8711123602",
+    "Vũ Thế Sơn": "1617730207",
+    "vũ thế sơn": "1617730207",
+    "Nguyễn Như Hà": "1748264109",
+    "nguyễn như hà": "1748264109",
+    "Nguyễn Mạnh Hà": "1725476265",
+    "nguyễn mạnh hà": "1725476265",
+    "Dương Văn Đức": "5600166410",
+    "dương văn đức": "5600166410",
+    "Nghiêm Tuấn Hiệp": "1646953895",
+    "nghiêm tuấn hiệp": "1646953895",
+    "Nguyễn Tuấn Mạnh Đức": "967937134",
+    "nguyễn tuấn mạnh đức": "967937134",
+    "Nguyễn Thế Duy": "7857172639",
+    "nguyễn thế duy": "7857172639",
+    "Nguyễn Văn Linh": "7590771051",
+    "nguyễn văn linh": "7590771051",
+    "Nguyễn Tiến Thành": "1478287224",
+    "nguyễn tiến thành": "1478287224",
+    "Ngô Tiến Nam": "5899662464",
+    "ngô tiến nam": "5899662464",
+    "Tiến Nam": "5899662464",
+    "tiến nam": "5899662464",
+    "Nguyễn Cao Sơn": "8414659971",
+    "nguyễn cao sơn": "8414659971",
+    "Lưu Thiên Kiệt": "7316177616",
+    "lưu thiên kiệt": "7316177616",
+    "Nguyễn Văn Vững": "8709372325",
+    "nguyễn văn vững": "8709372325",
+    "Hà Tuấn Đạt": "5245179531",
+    "hà tuấn đạt": "5245179531",
+    "Lê Đức Anh": "8927608603",
+    "lê đức anh": "8927608603"
+  };
+  
+  // Lọc ra những người trễ > 3 ngày (từ 4 ngày trở lên)
+  const targetStaff = Object.entries(counts)
+    .filter(([name, count]) => count > 3)
+    .sort((a, b) => b[1] - a[1]);
+    
+  const lines = [];
+  lines.push(`📊 <b>THỐNG KÊ TUẦN - CHƯA HOÀN TẤT APP (>3 NGÀY)</b>`);
+  lines.push(`━━━━━━━━━━━━━━━━━━`);
+  lines.push(`<i>Dữ liệu thống kê lúc 23h hàng ngày từ Thứ 2 đến Chủ Nhật tuần này.</i>\n`);
+  
+  if (targetStaff.length > 0) {
+    lines.push(`⚠️ <b>Danh sách nhân sự chưa hoàn tất app trên 3 ngày:</b>\n`);
+    for (const [name, count] of targetStaff) {
+      const tgIdentifier = staffMapping[name];
+      let displayName = `<b>${name}</b>`;
+      if (tgIdentifier && tgIdentifier.trim() !== '') {
+        const val = tgIdentifier.trim();
+        if (/^\d+$/.test(val)) {
+          displayName = `<a href="tg://user?id=${val}">${name}</a>`;
+        } else {
+          const usernameFormatted = val.startsWith('@') ? val : `@${val}`;
+          displayName = `<b>${name}</b> (${usernameFormatted})`;
+        }
+      }
+      
+      const dateItems = details[name];
+      const formattedPairs = [];
+      for (let i = 0; i < dateItems.length; i += 2) {
+        if (i + 1 < dateItems.length) {
+          const left = dateItems[i];
+          const paddedLeft = left + ' '.repeat(Math.max(0, 14 - left.length));
+          formattedPairs.push(`• ${paddedLeft} | • ${dateItems[i+1]}`);
+        } else {
+          formattedPairs.push(`• ${dateItems[i]}`);
+        }
+      }
+      
+      lines.push(`<blockquote>👤 ${displayName} — <b>${count} ngày trễ</b>\n<code>${formattedPairs.join('\n')}</code></blockquote>`);
+    }
+  } else {
+    lines.push(`🎉 Không có nhân sự nào chưa hoàn tất app trên 3 ngày trong tuần này. Xin cảm ơn mọi người!`);
+  }
+  
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi báo cáo thống kê tuần đến Chat ID: ${currentChatId}...`);
+    await bot.sendMessage(currentChatId, lines.join('\n'), { parse_mode: 'HTML' });
+    console.log('Gửi báo cáo thống kê tuần thành công!');
+  } catch (error) {
+    console.error('Gửi báo cáo thống kê tuần thất bại:', error.message);
+  }
+}
+async function sendDailyAssignedOrdersReport(targetChatId, statusCallback) {
+  if (isRender) {
+    console.log(`[${moment().tz(timezone).format()}] Chạy trên Render: Bỏ qua quét Selenium trip list.`);
+    if (statusCallback) statusCallback(false, 'Render không hỗ trợ chạy Selenium quét trip list');
+    return;
+  }
+
+  const scriptPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\ghn_trip_list_bot.py';
+  const reportPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\assigned_orders_report.txt';
+
+  // Xóa file báo cáo cũ nếu có
+  if (fs.existsSync(reportPath)) {
+    try { fs.unlinkSync(reportPath); } catch(e) {}
+  }
+
+  console.log(`[${moment().tz(timezone).format()}] Đang chạy script quét GHN trip list cho báo cáo đơn gán...`);
+  
+  exec(`python "${scriptPath}"`, async (error, stdout, stderr) => {
+    if (error) {
+      console.error('Lỗi chạy python trip list bot:', error.message);
+      if (statusCallback) statusCallback(false, `Lỗi chạy script Python: ${error.message}`);
+      return;
+    }
+
+    try {
+      if (!fs.existsSync(reportPath)) {
+        console.error('Không tìm thấy file báo cáo assigned_orders_report.txt');
+        if (statusCallback) statusCallback(false, 'Không tìm thấy file kết quả báo cáo');
+        return;
+      }
+
+      const reportText = fs.readFileSync(reportPath, 'utf8');
+
+      // Bảng ánh xạ tên trên GHN sang Telegram ID (số) hoặc Username (chữ) để tag
+      const staffMapping = {
+        "Lê Viết Lực": "6281487432",
+        "lê viết lực": "6281487432",
+        "Nguyễn Thị Huyền": "719990341",
+        "nguyễn thị huyền": "719990341",
+        "Nguyễn Ngọc Duy": "8403744896",
+        "nguyễn ngọc duy": "8403744896",
+        "Trần Thị Thu Trang": "7708350872",
+        "trần thị thu trang": "7708350872",
+        "Nguyễn Trung Kiên": "7304483491",
+        "nguyễn trung kiên": "7304483491",
+        "Nguyễn Thị Trang": "3170505",
+        "nguyễn thị trang": "3170505",
+        "Hoàng Quốc Việt": "868743297",
+        "hoàng quốc việt": "868743297",
+        "Nguyễn Xuân Hùng": "8711123602",
+        "nguyễn xuân hùng": "8711123602",
+        "Vũ Thế Sơn": "1617730207",
+        "vũ thế sơn": "1617730207",
+        "Nguyễn Như Hà": "1748264109",
+        "nguyễn như hà": "1748264109",
+        "Nguyễn Mạnh Hà": "1725476265",
+        "nguyễn mạnh hà": "1725476265",
+        "Dương Văn Đức": "5600166410",
+        "dương văn đức": "5600166410",
+        "Nghiêm Tuấn Hiệp": "1646953895",
+        "nghiêm tuấn hiệp": "1646953895",
+        "Nguyễn Tuấn Mạnh Đức": "967937134",
+        "nguyễn tuấn mạnh đức": "967937134",
+        "Nguyễn Thế Duy": "7857172639",
+        "nguyễn thế duy": "7857172639",
+        "Nguyễn Văn Linh": "7590771051",
+        "nguyễn văn linh": "7590771051",
+        "Nguyễn Tiến Thành": "1478287224",
+        "nguyễn tiến thành": "1478287224",
+        "Ngô Tiến Nam": "5899662464",
+        "ngô tiến nam": "5899662464",
+        "Tiến Nam": "5899662464",
+        "tiến nam": "5899662464",
+        "Nguyễn Cao Sơn": "8414659971",
+        "nguyễn cao sơn": "8414659971",
+        "Lưu Thiên Kiệt": "7316177616",
+        "lưu thiên kiệt": "7316177616",
+        "Nguyễn Văn Vững": "8709372325",
+        "nguyễn văn vững": "8709372325",
+        "Hà Tuấn Đạt": "5245179531",
+        "hà tuấn đạt": "5245179531",
+        "Lê Đức Anh": "8927608603",
+        "lê đức anh": "8927608603"
+      };
+
+      let finalReport = reportText;
+      for (const [ghnName, tgIdentifier] of Object.entries(staffMapping)) {
+        if (tgIdentifier && tgIdentifier.trim() !== '') {
+          const val = tgIdentifier.trim();
+          if (/^\d+$/.test(val)) {
+            // Nếu là ID dạng số: Tạo thẻ HTML tag ẩn
+            finalReport = finalReport.split(`<b>${ghnName}</b>`).join(`<a href="tg://user?id=${val}">${ghnName}</a>`);
+          } else {
+            // Nếu là Username dạng chữ: Chèn thêm @username
+            const usernameFormatted = val.startsWith('@') ? val : `@${val}`;
+            finalReport = finalReport.split(`<b>${ghnName}</b>`).join(`<b>${ghnName}</b> (${usernameFormatted})`);
+          }
+        }
+      }
+
+      console.log(`Gửi báo cáo đơn gán đến Chat ID: ${targetChatId}`);
+      await bot.sendMessage(targetChatId, finalReport, { parse_mode: 'HTML' });
+      console.log('Gửi báo cáo đơn gán thành công!');
+      
+      if (statusCallback) statusCallback(true, 'Gửi báo cáo đơn gán thành công!');
+    } catch (sendErr) {
+      console.error('Gửi báo cáo đơn gán thất bại:', sendErr.message);
+      if (statusCallback) statusCallback(false, `Lỗi gửi tin nhắn Telegram: ${sendErr.message}`);
+    }
+  });
+}
+
+async function sendDailyBacklogReport(targetChatId, statusCallback) {
+  if (isRender) {
+    console.log(`[${moment().tz(timezone).format()}] Chạy trên Render: Bỏ qua quét Selenium backlog.`);
+    if (statusCallback) statusCallback(false, 'Render không hỗ trợ chạy Selenium quét backlog');
+    return;
+  }
+
+  const scriptPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\get_backlog.py';
+  const reportPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\backlog_report.txt';
+  const photoPath = 'C:\\Users\\tiendk\\.gemini\\antigravity\\scratch\\pickup-tracking\\backlog_page.png';
+
+  // Xóa file báo cáo cũ nếu có
+  if (fs.existsSync(reportPath)) {
+    try { fs.unlinkSync(reportPath); } catch(e) {}
+  }
+  if (fs.existsSync(photoPath)) {
+    try { fs.unlinkSync(photoPath); } catch(e) {}
+  }
+
+  console.log(`[${moment().tz(timezone).format()}] Đang chạy script quét GHN backlog...`);
+  
+  exec(`python "${scriptPath}"`, async (error, stdout, stderr) => {
+    if (error) {
+      console.error('Lỗi chạy python backlog bot:', error.message);
+      if (statusCallback) statusCallback(false, `Lỗi chạy script Python: ${error.message}`);
+      return;
+    }
+
+    try {
+      if (!fs.existsSync(reportPath)) {
+        console.error('Không tìm thấy file báo cáo backlog_report.txt');
+        if (statusCallback) statusCallback(false, 'Không tìm thấy file kết quả báo cáo');
+        return;
+      }
+
+      const reportText = fs.readFileSync(reportPath, 'utf8');
+
+      if (fs.existsSync(photoPath)) {
+        console.log(`Gửi báo cáo backlog kèm ảnh đến Chat ID: ${targetChatId}`);
+        await bot.sendPhoto(targetChatId, photoPath, { caption: reportText, parse_mode: 'HTML' });
+      } else {
+        console.log(`Gửi báo cáo backlog dạng text đến Chat ID: ${targetChatId}`);
+        await bot.sendMessage(targetChatId, reportText, { parse_mode: 'HTML' });
+      }
+      
+      console.log('Gửi báo cáo backlog thành công!');
+      if (statusCallback) statusCallback(true, 'Gửi báo cáo backlog thành công!');
+    } catch (sendErr) {
+      console.error('Gửi báo cáo backlog thất bại:', sendErr.message);
+      if (statusCallback) statusCallback(false, `Lỗi gửi tin nhắn Telegram: ${sendErr.message}`);
+    }
+  });
+}
+
+
 // Thiết lập cron job nhắc nhở SÁNG (10h00)
+
 cron.schedule(cronTimeMorning, () => {
   console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở SÁNG...`);
   sendMorningReminder();
@@ -333,6 +816,52 @@ cron.schedule(cronTimeNight, () => {
   timezone: timezone
 });
 
+// Thiết lập cron job gửi thống kê TUẦN (Chủ Nhật lúc 23h05)
+cron.schedule(cronTimeSundayStats, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi thống kê TUẦN...`);
+  sendSundayStats();
+}, {
+  scheduled: true,
+  timezone: timezone
+});
+
+// Thiết lập cron job gửi nhắc nhở ĐĂNG KÝ LỊCH TUẦN MỚI (Chủ Nhật lúc 15h00)
+cron.schedule(cronTimeSundayRegistration, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở ĐĂNG KÝ LỊCH TUẦN MỚI...`);
+  sendSundayRegistrationReminder();
+}, {
+  scheduled: true,
+  timezone: timezone
+});
+
+// Thiết lập cron job gửi báo cáo ĐƠN GÁN HÀNG NGÀY (23h30)
+cron.schedule(cronTimeAssignedOrders, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo ĐƠN GÁN HÀNG NGÀY...`);
+  if (!chatIdAssignedOrders || chatIdAssignedOrders === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi báo cáo đơn gán vì chưa cấu hình Chat ID phù hợp trong file .env');
+    return;
+  }
+  sendDailyAssignedOrdersReport(chatIdAssignedOrders);
+}, {
+  scheduled: true,
+  timezone: timezone
+});
+
+// Thiết lập cron job gửi báo cáo BACKLOG HÀNG NGÀY (10h30)
+cron.schedule(cronTimeBacklog, () => {
+  console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo BACKLOG HÀNG NGÀY...`);
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi báo cáo backlog vì chưa cấu hình Chat ID phù hợp trong file .env');
+    return;
+  }
+  sendDailyBacklogReport(currentChatId);
+}, {
+  scheduled: true,
+  timezone: timezone
+});
+
+
 // Phản hồi lệnh /status để kiểm tra xem bot còn sống hay không
 bot.onText(/\/status(@\w+)?$/, (msg) => {
   const responseChatId = msg.chat.id;
@@ -343,13 +872,90 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
                     `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
                     `• Hẹn giờ CHIỀU (16h30): <code>${cronTimeAfternoon}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
                     `• Hẹn giờ TỐI (20h00): <code>${cronTimeEvening}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n` +
-                    `• Hẹn giờ ĐÊM (01h00): <code>${cronTimeNight}</code> (Nhóm ID: <code>${chatIdNight}</code>)\n\n` +
+                    `• Hẹn giờ ĐÊM (01h00): <code>${cronTimeNight}</code> (Nhóm ID: <code>${chatIdNight}</code>)\n` +
+                    `• Hẹn giờ ĐƠN GÁN (23h30): <code>${cronTimeAssignedOrders}</code> (Nhóm ID: <code>${chatIdAssignedOrders}</code>)\n` +
+                    `• Hẹn giờ THỐNG KÊ TUẦN (Chủ Nhật): <code>${cronTimeSundayStats}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n` +
+                    `• Hẹn giờ ĐĂNG KÝ LỊCH (Chủ Nhật): <code>${cronTimeSundayRegistration}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
+                    `• Hẹn giờ BACKLOG (10h30): <code>${cronTimeBacklog}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n\n` +
                     `• Thử nghiệm SÁNG: /test_send\n` +
                     `• Thử nghiệm CHIỀU: /test_send_afternoon\n` +
                     `• Thử nghiệm TỐI: /test_send_evening\n` +
-                    `• Thử nghiệm ĐÊM: /test_send_night`;
+                    `• Thử nghiệm ĐÊM: /test_send_night\n` +
+                    `• Thử nghiệm ĐƠN GÁN: /test_send_assigned_orders\n` +
+                    `• Thử nghiệm BACKLOG: /test_send_backlog\n` +
+                    `• Thử nghiệm THỐNG KÊ TUẦN: /test_send_stats\n` +
+                    `• Thử nghiệm ĐĂNG KÝ LỊCH: /test_send_registration`;
   
   bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'HTML' });
+});
+
+// Phản hồi lệnh /test_send_stats để chạy thử gửi thống kê tuần
+bot.onText(/\/test_send_stats(@\w+)?$/, async (msg) => {
+  const responseChatId = msg.chat.id;
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm tổng hợp thống kê tuần (Chủ Nhật)...');
+  await sendSundayStats();
+});
+
+// Phản hồi lệnh /test_send_assigned_orders để chạy thử gửi báo cáo đơn gán hàng ngày
+bot.onText(/\/test_send_assigned_orders(@\w+)?$/, async (msg) => {
+  const responseChatId = msg.chat.id;
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm quét dữ liệu GHN và gửi báo cáo ĐƠN GÁN (khoảng 30 giây)...');
+
+  if (!chatIdAssignedOrders || chatIdAssignedOrders === 'YOUR_CHAT_ID_HERE') {
+    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_ASSIGNED_ORDERS trong file .env');
+    return;
+  }
+
+  await sendDailyAssignedOrdersReport(chatIdAssignedOrders, (success, statusMsg) => {
+    bot.sendMessage(responseChatId, `Kết quả quét đơn gán: <b>${statusMsg}</b>`, { parse_mode: 'HTML' });
+  });
+});
+
+// Phản hồi lệnh /test_send_backlog để chạy thử gửi báo cáo backlog hàng ngày
+bot.onText(/\/test_send_backlog(@\w+)?$/, async (msg) => {
+  const responseChatId = msg.chat.id;
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm quét dữ liệu GHN và gửi báo cáo BACKLOG (khoảng 30 giây)...');
+
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON trong file .env');
+    return;
+  }
+
+  await sendDailyBacklogReport(currentChatId, (success, statusMsg) => {
+    bot.sendMessage(responseChatId, `Kết quả quét backlog: <b>${statusMsg}</b>`, { parse_mode: 'HTML' });
+  });
+});
+
+
+// Phản hồi lệnh /test_send_registration để chạy thử gửi nhắc nhở đăng ký lịch
+bot.onText(/\/test_send_registration(@\w+)?$/, async (msg) => {
+  const responseChatId = msg.chat.id;
+  bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi nhắc nhở ĐĂNG KÝ LỊCH TUẦN MỚI...');
+  
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON trong file .env');
+    return;
+  }
+
+  const nextMonday = moment().tz(timezone).add(1, 'days').format('DD/MM');
+  const nextSunday = moment().tz(timezone).add(7, 'days').format('DD/MM');
+
+  const message = `📋 <b>ĐĂNG KÝ LỊCH TUẦN MỚI (Long Biên - Nhóm 1) (THỬ NGHIỆM)</b>\n` +
+                  `📅 Thời gian: Từ <b>Thứ Hai ${nextMonday}</b> đến <b>Chủ Nhật ${nextSunday}</b>\n\n` +
+                  `Mời các anh em tranh thủ đăng ký lịch làm việc tuần tiếp theo:\n` +
+                  `• 🚚 <b>NVGH</b> (Nhân viên giao hàng)\n` +
+                  `• 🌅 <b>NVXL SÁNG</b>\n` +
+                  `• 🌆 <b>NVXL CHIỀU</b>\n\n` +
+                  `<i>Mọi người nhanh chóng cập nhật nhé! Xin cảm ơn!</i>`;
+
+  try {
+    await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+  } catch (error) {
+    bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+  }
 });
 
 // Phản hồi lệnh /test_send (hoặc /test_send_morning) để chạy thử gửi tin nhắn SÁNG
