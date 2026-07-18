@@ -79,7 +79,7 @@ const cronTimeSundayStats = process.env.CRON_TIME_SUNDAY_STATS || '5 23 * * 0';
 const cronTimeSundayRegistration = process.env.CRON_TIME_SUNDAY_REGISTRATION || '0 15 * * 0';
 const cronTimeAssignedOrders = process.env.CRON_TIME_ASSIGNED_ORDERS || '30 23 * * *';
 const cronTimeBacklog = process.env.CRON_TIME_BACKLOG || '30 10 * * *';
-const cronTimeRotationBacklog = process.env.CRON_TIME_ROTATION_BACKLOG || '0 14 * * *';
+const cronTimeRotationBacklog = process.env.CRON_TIME_ROTATION_BACKLOG || '0 2 * * *';
 const cronTimeWeeklyUnreplied = process.env.CRON_TIME_WEEKLY_UNREPLIED || '0 21 * * 0';
 
 
@@ -135,7 +135,7 @@ console.log(`Lịch gửi THỐNG KÊ KHÔNG TRẢ LỜI BOT (Chủ Nhật 21h00
 console.log(`Lịch gửi ĐĂNG KÝ LỊCH (Chủ Nhật 15h00): ${cronTimeSundayRegistration} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Lịch gửi ĐƠN GÁN (23h30): ${cronTimeAssignedOrders} (Nhóm ID: ${chatIdAssignedOrders})`);
 console.log(`Lịch gửi BACKLOG (10h30): ${cronTimeBacklog} (Nhóm ID: ${chatIdAfternoon})`);
-console.log(`Lịch gửi BACKLOG LUÂN CHUYỂN (14h00): ${cronTimeRotationBacklog} (Nhóm ID: ${chatIdAfternoon})`);
+console.log(`Lịch gửi BACKLOG LUÂN CHUYỂN (02h00): ${cronTimeRotationBacklog} (Nhóm ID: ${chatIdAfternoon})`);
 console.log(`Thời gian hiện tại của hệ thống bot: ${moment().tz(timezone).format('YYYY-MM-DD HH:mm:ss')}`);
 
 
@@ -937,7 +937,7 @@ async function sendDailyRotationBacklogReport(targetChatId, statusCallback) {
         await bot.sendMessage(targetChatId, reportText, { parse_mode: 'HTML' });
       }
       
-      recordReminderSent('BACKLOG LUÂN CHUYỂN (14h00)', targetChatId);
+      recordReminderSent('BACKLOG LUÂN CHUYỂN (02h00)', targetChatId);
       
       console.log('Gửi báo cáo rotation backlog thành công!');
       if (statusCallback) statusCallback(true, 'Gửi báo cáo rotation backlog thành công!');
@@ -1037,7 +1037,7 @@ cron.schedule(cronTimeBacklog, () => {
   timezone: timezone
 });
 
-// Thiết lập cron job gửi báo cáo BACKLOG LUÂN CHUYỂN HÀNG NGÀY (14h00)
+// Thiết lập cron job gửi báo cáo BACKLOG LUÂN CHUYỂN HÀNG NGÀY (02h00)
 cron.schedule(cronTimeRotationBacklog, () => {
   console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo BACKLOG LUÂN CHUYỂN HÀNG NGÀY...`);
   const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
@@ -1067,7 +1067,7 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
                     `• Hẹn giờ THỐNG KÊ TUẦN (Chủ Nhật): <code>${cronTimeSundayStats}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n` +
                     `• Hẹn giờ ĐĂNG KÝ LỊCH (Chủ Nhật): <code>${cronTimeSundayRegistration}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
                     `• Hẹn giờ BACKLOG (10h30): <code>${cronTimeBacklog}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
-                    `• Hẹn giờ BACKLOG LUÂN CHUYỂN (14h00): <code>${cronTimeRotationBacklog}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n\n` +
+                    `• Hẹn giờ BACKLOG LUÂN CHUYỂN (02h00): <code>${cronTimeRotationBacklog}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n\n` +
                     `• Thử nghiệm SÁNG: /test_send\n` +
                     `• Thử nghiệm CHIỀU: /test_send_afternoon\n` +
                     `• Thử nghiệm TỐI: /test_send_evening\n` +
