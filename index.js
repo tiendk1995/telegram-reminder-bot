@@ -247,6 +247,41 @@ function generateBookTruckReminderMessage() {
          `🏷️ TAG: <a href="tg://user?id=719990341">@719990341</a> <a href="tg://user?id=8403744896">@8403744896</a> @Tú29N1 @NVTHANGDP`;
 }
 
+// Hàm sinh nội dung tin nhắn nhắc nhở báo cáo tồn Con Cưng
+function generateConCungReminderMessage() {
+  return `📋 <b>BÁO CÁO TỒN CON CƯNG</b>\n` +
+         `━━━━━━━━━━━━━━━━━━\n\n` +
+         `📦 Tổng đơn tồn: ...... đơn\n\n` +
+         `STT  Mã đơn  Địa chỉ\n` +
+         `1    ......  ......\n` +
+         `2    ......  ......\n` +
+         `3    ......  ......\n\n` +
+         `🏷️ TAG: <a href="tg://user?id=7708350872">@7708350872</a> <a href="tg://user?id=3170505">@3170505</a>`;
+}
+
+// Hàm sinh nội dung tin nhắn nhắc nhở báo cáo backlog
+function generateBacklogReminderMessage() {
+  return `📋 <b>BÁO CÁO ĐƠN TỒN TRÊN 36H</b>\n` +
+         `━━━━━━━━━━━━━━━━━━\n\n` +
+         `🚚 Đơn tồn giao: ...... đơn\n` +
+         `📝 Giải trình:\n\n` +
+         `......\n\n` +
+         `🔄 Đơn tồn trả: ...... đơn\n` +
+         `📝 Giải trình:\n\n` +
+         `......\n\n` +
+         `🏷️ TAG: <a href="tg://user?id=7708350872">@7708350872</a> <a href="tg://user?id=3170505">@3170505</a> <a href="tg://user?id=8403744896">@8403744896</a> <a href="tg://user?id=719990341">@719990341</a>`;
+}
+
+// Hàm sinh nội dung tin nhắn nhắc nhở báo cáo luân chuyển backlog
+function generateRotationBacklogReminderMessage() {
+  return `📋 <b>BÁO CÁO ĐƠN TỒN LUÂN CHUYỂN TRÊN 36H</b>\n\n` +
+         `🚚 Luân chuyển giao:\n` +
+         `📝 Giải trình: ……\n\n` +
+         `🔄 Luân chuyển trả:\n` +
+         `📝 Giải trình: ……\n\n` +
+         `🏷️ Tag: <a href="tg://user?id=6281487432">@6281487432</a> <a href="tg://user?id=7304483491">@7304483491</a> <a href="tg://user?id=868743297">@868743297</a> <a href="tg://user?id=8711123602">@8711123602</a>`;
+}
+
 // Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU (có tag)
 function generateAfternoonReminderMessage() {
   const usernamesStr = process.env.EMPLOYEE_USERNAMES || '';
@@ -419,6 +454,63 @@ async function sendBookTruckReminder() {
     recordReminderSent('BOOK XE GIAO', currentChatId);
   } catch (error) {
     console.error('Gửi tin nhắn nhắc nhở book xe thất bại:', error.message);
+  }
+}
+
+// Hàm gửi nhắc nhở báo cáo tồn Con Cưng
+async function sendConCungReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_CON_CUNG || process.env.TELEGRAM_CHAT_ID || '-5018964680';
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở tồn Con Cưng vì chưa cấu hình TELEGRAM_CHAT_ID_CON_CUNG trong file .env');
+    return;
+  }
+
+  const message = generateConCungReminderMessage();
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở tồn Con Cưng đến Chat ID: ${currentChatId}...`);
+    await safeSendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi tin nhắn nhắc nhở tồn Con Cưng thành công!');
+    recordReminderSent('TỒN CON CƯNG', currentChatId);
+  } catch (error) {
+    console.error('Gửi tin nhắn nhắc nhở tồn Con Cưng thất bại:', error.message);
+  }
+}
+
+// Hàm gửi nhắc nhở báo cáo backlog
+async function sendBacklogReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_BACKLOG || '-1004372456405';
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở backlog vì chưa cấu hình TELEGRAM_CHAT_ID_BACKLOG trong file .env');
+    return;
+  }
+
+  const message = generateBacklogReminderMessage();
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở backlog đến Chat ID: ${currentChatId}...`);
+    await safeSendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi tin nhắn nhắc nhở backlog thành công!');
+    recordReminderSent('BACKLOG HÀNG NGÀY', currentChatId);
+  } catch (error) {
+    console.error('Gửi tin nhắn nhắc nhở backlog thất bại:', error.message);
+  }
+}
+
+// Hàm gửi nhắc nhở luân chuyển backlog
+async function sendRotationBacklogReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405';
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở luân chuyển backlog vì chưa cấu hình TELEGRAM_CHAT_ID_ROTATION_BACKLOG trong file .env');
+    return;
+  }
+
+  const message = generateRotationBacklogReminderMessage();
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở luân chuyển backlog đến Chat ID: ${currentChatId}...`);
+    await safeSendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi tin nhắn nhắc nhở luân chuyển backlog thành công!');
+    recordReminderSent('LUÂN CHUYỂN BACKLOG', currentChatId);
+  } catch (error) {
+    console.error('Gửi tin nhắn nhắc nhở luân chuyển backlog thất bại:', error.message);
   }
 }
 
@@ -1510,6 +1602,33 @@ if (botType === 'reminder' || botType === 'all') {
     scheduled: true,
     timezone: timezone
   });
+
+  // Thiết lập cron job nhắc nhở tồn Con Cưng ca 16h00
+  cron.schedule('0 16 * * *', () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở tồn Con Cưng ca 16h00...`);
+    sendConCungReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job nhắc nhở backlog giao - trả ca 10h00
+  cron.schedule('0 10 * * *', () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở backlog giao - trả ca 10h00...`);
+    sendBacklogReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job nhắc nhở luân chuyển backlog ca 01h00 sáng
+  cron.schedule('0 1 * * *', () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở luân chuyển backlog ca 01h00...`);
+    sendRotationBacklogReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
 }
 
 
@@ -1524,13 +1643,22 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
                     
   if (botType === 'reminder' || botType === 'all') {
     const bookTruckGroup = process.env.TELEGRAM_CHAT_ID_BOOK_TRUCK || '-5599911868';
+    const conCungGroup = process.env.TELEGRAM_CHAT_ID_CON_CUNG || process.env.TELEGRAM_CHAT_ID || '-5018964680';
+    const backlogGroup = process.env.TELEGRAM_CHAT_ID_BACKLOG || '-1004372456405';
+    const rotationBacklogGroup = process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405';
     statusMsg += `<b>[Cấu hình Báo Nhắc]</b>\n` +
                  `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
                  `• Hẹn giờ FL (8h, 17h, 18h): <code>08:00, 17:00, 18:00</code> (Nhóm ID: <code>${chatIdFLReport}</code>)\n` +
-                 `• Hẹn giờ BOOK XE (16h00): <code>16:00</code> (Nhóm ID: <code>${bookTruckGroup}</code>)\n\n` +
+                 `• Hẹn giờ BOOK XE (16h00): <code>16:00</code> (Nhóm ID: <code>${bookTruckGroup}</code>)\n` +
+                 `• Hẹn giờ TỒN CON CƯNG (16h00): <code>16:00</code> (Nhóm ID: <code>${conCungGroup}</code>)\n` +
+                 `• Hẹn giờ BACKLOG (10h00): <code>10:00</code> (Nhóm ID: <code>${backlogGroup}</code>)\n` +
+                 `• Hẹn giờ TỒN LC ĐÊM (01h00): <code>01:00</code> (Nhóm ID: <code>${rotationBacklogGroup}</code>)\n\n` +
                  `• Thử nghiệm SÁNG: /test_send\n` +
                  `• Thử nghiệm FL: /test_send_fl\n` +
-                 `• Thử nghiệm BOOK XE: /test_send_book_truck\n`;
+                 `• Thử nghiệm BOOK XE: /test_send_book_truck\n` +
+                 `• Thử nghiệm TỒN CON CƯNG: /test_send_con_cung\n` +
+                 `• Thử nghiệm BACKLOG: /test_send_backlog\n` +
+                 `• Thử nghiệm TỒN LC ĐÊM: /test_send_rotation_backlog\n`;
   }
   
   bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'HTML' });
@@ -1595,6 +1723,66 @@ if (botType === 'reminder' || botType === 'all') {
     }
 
     const message = generateBookTruckReminderMessage();
+    try {
+      await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+      bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+    } catch (error) {
+      bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+    }
+  });
+
+  // Phản hồi lệnh /test_send_con_cung để chạy thử gửi nhắc nhở tồn Con Cưng
+  bot.onText(/\/test_send_con_cung(@\w+)?$/, async (msg) => {
+    const responseChatId = msg.chat.id;
+    bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi nhắc nhở tồn Con Cưng...');
+    
+    const currentChatId = process.env.TELEGRAM_CHAT_ID_CON_CUNG || process.env.TELEGRAM_CHAT_ID || '-5018964680';
+    if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+      bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_CON_CUNG trong file .env');
+      return;
+    }
+
+    const message = generateConCungReminderMessage();
+    try {
+      await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+      bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+    } catch (error) {
+      bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+    }
+  });
+
+  // Phản hồi lệnh /test_send_backlog để chạy thử gửi nhắc nhở backlog
+  bot.onText(/\/test_send_backlog(@\w+)?$/, async (msg) => {
+    const responseChatId = msg.chat.id;
+    bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi nhắc nhở backlog...');
+    
+    const currentChatId = process.env.TELEGRAM_CHAT_ID_BACKLOG || '-1004372456405';
+    if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+      bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_BACKLOG trong file .env');
+      return;
+    }
+
+    const message = generateBacklogReminderMessage();
+    try {
+      await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+      bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+    } catch (error) {
+      bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+    }
+  });
+
+  // Phản hồi lệnh /test_send_rotation_backlog để chạy thử gửi nhắc nhở luân chuyển backlog
+  bot.onText(/\/test_send_rotation_backlog(@\w+)?$/, async (msg) => {
+    const responseChatId = msg.chat.id;
+    bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi nhắc nhở luân chuyển backlog...');
+    
+    const currentChatId = process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405';
+    if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+      bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_ROTATION_BACKLOG trong file .env');
+      return;
+    }
+
+    const message = generateRotationBacklogReminderMessage();
     try {
       await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
       bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
