@@ -393,6 +393,25 @@ async function sendFLReminder() {
   }
 }
 
+// Hàm gửi nhắc nhở book xe giao hàng
+async function sendBookTruckReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_BOOK_TRUCK || '-5599911868';
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở book xe vì chưa cấu hình TELEGRAM_CHAT_ID_BOOK_TRUCK trong file .env');
+    return;
+  }
+
+  const message = generateBookTruckReminderMessage();
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở book xe đến Chat ID: ${currentChatId}...`);
+    await safeSendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi tin nhắn nhắc nhở book xe thành công!');
+    recordReminderSent('BOOK XE GIAO', currentChatId);
+  } catch (error) {
+    console.error('Gửi tin nhắn nhắc nhở book xe thất bại:', error.message);
+  }
+}
+
 // Hàm gửi tin nhắn nhắc nhở CHIỀU
 async function sendAfternoonReminder() {
   const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
@@ -1472,6 +1491,15 @@ if (botType === 'reminder' || botType === 'all') {
     scheduled: true,
     timezone: timezone
   });
+
+  // Thiết lập cron job nhắc nhở book xe giao hàng ca 16h00
+  cron.schedule('0 16 * * *', () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở book xe giao ca 16h00...`);
+    sendBookTruckReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
 }
 
 
@@ -1485,11 +1513,14 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
                     `• Giờ hiện tại: <code>${currentTime}</code>\n\n`;
                     
   if (botType === 'reminder' || botType === 'all') {
+    const bookTruckGroup = process.env.TELEGRAM_CHAT_ID_BOOK_TRUCK || '-5599911868';
     statusMsg += `<b>[Cấu hình Báo Nhắc]</b>\n` +
                  `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
-                 `• Hẹn giờ FL (8h, 17h, 18h): <code>08:00, 17:00, 18:00</code> (Nhóm ID: <code>${chatIdFLReport}</code>)\n\n` +
+                 `• Hẹn giờ FL (8h, 17h, 18h): <code>08:00, 17:00, 18:00</code> (Nhóm ID: <code>${chatIdFLReport}</code>)\n` +
+                 `• Hẹn giờ BOOK XE (16h00): <code>16:00</code> (Nhóm ID: <code>${bookTruckGroup}</code>)\n\n` +
                  `• Thử nghiệm SÁNG: /test_send\n` +
-                 `• Thử nghiệm FL: /test_send_fl\n`;
+                 `• Thử nghiệm FL: /test_send_fl\n` +
+                 `• Thử nghiệm BOOK XE: /test_send_book_truck\n`;
   }
   
   bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'HTML' });
@@ -1534,6 +1565,26 @@ if (botType === 'reminder' || botType === 'all') {
     }
 
     const message = generateFLReminderMessage();
+    try {
+      await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+      bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+    } catch (error) {
+      bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+    }
+  });
+
+  // Phản hồi lệnh /test_send_book_truck để chạy thử gửi nhắc nhở book xe
+  bot.onText(/\/test_send_book_truck(@\w+)?$/, async (msg) => {
+    const responseChatId = msg.chat.id;
+    bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi nhắc nhở book xe...');
+    
+    const currentChatId = process.env.TELEGRAM_CHAT_ID_BOOK_TRUCK || '-5599911868';
+    if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+      bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_BOOK_TRUCK trong file .env');
+      return;
+    }
+
+    const message = generateBookTruckReminderMessage();
     try {
       await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
       bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
