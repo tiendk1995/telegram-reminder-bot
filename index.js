@@ -228,6 +228,15 @@ function generateMorningReminderMessage() {
          `🏷️ TAG: <a href="tg://user?id=719990341">@719990341</a> <a href="tg://user?id=8403744896">@8403744896</a> <a href="tg://user?id=7708350872">@7708350872</a> <a href="tg://user?id=3170505">@3170505</a>`;
 }
 
+// Hàm sinh nội dung tin nhắn nhắc nhở báo cáo FL
+function generateFLReminderMessage() {
+  return `📸 <b>NHẮC NHỞ BÁO CÁO ẢNH FL</b>\n\n` +
+         `⚠️ Đã đến thời gian báo cáo ảnh vào ca.\n\n` +
+         `Vui lòng gửi ảnh báo cáo FL theo đúng quy định để bộ phận vận hành tổng hợp và theo dõi.\n\n` +
+         `⏰ Nếu đã báo cáo, vui lòng bỏ qua thông báo này.\n\n` +
+         `🏷️ TAG: <a href="tg://user?id=719990341">@719990341</a> <a href="tg://user?id=8403744896">@8403744896</a> <a href="tg://user?id=7708350872">@7708350872</a> <a href="tg://user?id=3170505">@3170505</a> <a href="tg://user?id=6281487432">@6281487432</a> <a href="tg://user?id=868743297">@868743297</a> <a href="tg://user?id=8711123602">@8711123602</a>`;
+}
+
 // Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU (có tag)
 function generateAfternoonReminderMessage() {
   const usernamesStr = process.env.EMPLOYEE_USERNAMES || '';
@@ -362,6 +371,25 @@ async function sendMorningReminder() {
     recordReminderSent('SÁNG (10h00)', currentChatId);
   } catch (error) {
     console.error('Gửi tin nhắn nhắc nhở sáng thất bại:', error.message);
+  }
+}
+
+// Hàm gửi nhắc nhở báo cáo FL
+async function sendFLReminder() {
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_FL_REPORT || '-4877524742';
+  if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+    console.error('Không thể gửi nhắc nhở FL vì chưa cấu hình TELEGRAM_CHAT_ID_FL_REPORT trong file .env');
+    return;
+  }
+
+  const message = generateFLReminderMessage();
+  try {
+    console.log(`[${moment().tz(timezone).format()}] Đang gửi tin nhắn nhắc nhở FL đến Chat ID: ${currentChatId}...`);
+    await safeSendMessage(currentChatId, message, { parse_mode: 'HTML' });
+    console.log('Gửi tin nhắn nhắc nhở FL thành công!');
+    recordReminderSent('NHẮC ẢNH FL', currentChatId);
+  } catch (error) {
+    console.error('Gửi tin nhắn nhắc nhở FL thất bại:', error.message);
   }
 }
 
@@ -1419,6 +1447,31 @@ if (botType === 'reminder' || botType === 'all') {
     scheduled: true,
     timezone: timezone
   });
+
+  // Thiết lập các cron job nhắc nhở FL (ca 8h, 17h, 18h)
+  cron.schedule('0 8 * * *', () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở FL ca 08h00...`);
+    sendFLReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  cron.schedule('0 17 * * *', () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở FL ca 17h00...`);
+    sendFLReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  cron.schedule('0 18 * * *', () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở FL ca 18h00...`);
+    sendFLReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
 }
 
 
@@ -1433,8 +1486,10 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
                     
   if (botType === 'reminder' || botType === 'all') {
     statusMsg += `<b>[Cấu hình Báo Nhắc]</b>\n` +
-                 `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n\n` +
-                 `• Thử nghiệm SÁNG: /test_send\n`;
+                 `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
+                 `• Hẹn giờ FL (8h, 17h, 18h): <code>08:00, 17:00, 18:00</code> (Nhóm ID: <code>${chatIdFLReport}</code>)\n\n` +
+                 `• Thử nghiệm SÁNG: /test_send\n` +
+                 `• Thử nghiệm FL: /test_send_fl\n`;
   }
   
   bot.sendMessage(responseChatId, statusMsg, { parse_mode: 'HTML' });
@@ -1459,6 +1514,26 @@ if (botType === 'reminder' || botType === 'all') {
     }
 
     const message = generateMorningReminderMessage();
+    try {
+      await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
+      bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
+    } catch (error) {
+      bot.sendMessage(responseChatId, `❌ Gửi thất bại: ${error.message}`);
+    }
+  });
+
+  // Phản hồi lệnh /test_send_fl để chạy thử gửi nhắc nhở FL
+  bot.onText(/\/test_send_fl(@\w+)?$/, async (msg) => {
+    const responseChatId = msg.chat.id;
+    bot.sendMessage(responseChatId, '🔄 Đang chạy thử nghiệm gửi nhắc nhở FL...');
+    
+    const currentChatId = process.env.TELEGRAM_CHAT_ID_FL_REPORT || '-4877524742';
+    if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
+      bot.sendMessage(responseChatId, '❌ Lỗi: Bạn chưa cấu hình TELEGRAM_CHAT_ID_FL_REPORT trong file .env');
+      return;
+    }
+
+    const message = generateFLReminderMessage();
     try {
       await bot.sendMessage(currentChatId, message, { parse_mode: 'HTML' });
       bot.sendMessage(responseChatId, `✅ Gửi thành công đến Chat ID: <code>${currentChatId}</code>`, { parse_mode: 'HTML' });
