@@ -237,6 +237,16 @@ function generateFLReminderMessage() {
          `🏷️ TAG: <a href="tg://user?id=719990341">@719990341</a> <a href="tg://user?id=8403744896">@8403744896</a> <a href="tg://user?id=7708350872">@7708350872</a> <a href="tg://user?id=3170505">@3170505</a> <a href="tg://user?id=6281487432">@6281487432</a> <a href="tg://user?id=868743297">@868743297</a> <a href="tg://user?id=8711123602">@8711123602</a>`;
 }
 
+// Hàm sinh nội dung tin nhắn nhắc nhở book xe giao hàng
+function generateBookTruckReminderMessage() {
+  return `🚚 <b>BOOK XE GIAO NGÀY MAI</b>\n` +
+         `━━━━━━━━━━━━━━━━━━\n\n` +
+         `🚛 NVGH: …… xe\n` +
+         `🚛 NVGH đi Hưng Yên: …… xe\n\n` +
+         `📊 <b>TỔNG BOOK: …… xe</b>\n\n` +
+         `🏷️ TAG: <a href="tg://user?id=719990341">@719990341</a> <a href="tg://user?id=8403744896">@8403744896</a> @Tú29N1 @NVTHANGDP`;
+}
+
 // Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU (có tag)
 function generateAfternoonReminderMessage() {
   const usernamesStr = process.env.EMPLOYEE_USERNAMES || '';
