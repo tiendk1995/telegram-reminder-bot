@@ -1629,6 +1629,78 @@ if (botType === 'reminder' || botType === 'all') {
     scheduled: true,
     timezone: timezone
   });
+
+  // Thiết lập cron job nhắc nhở CHIỀU (16h30)
+  cron.schedule(cronTimeAfternoon, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở CHIỀU...`);
+    sendAfternoonReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job nhắc nhở TỐI (20h00, 21h00, 22h00, 23h00)
+  cron.schedule(cronTimeEvening, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở TỐI...`);
+    sendEveningReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job nhắc nhở đăng ký lịch tuần mới (Chủ Nhật 00h00)
+  cron.schedule(cronTimeSundayRegistration, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job đăng ký lịch tuần mới...`);
+    sendSundayRegistrationReminder();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job gửi thống kê tuần (Chủ Nhật 23h05)
+  cron.schedule(cronTimeSundayStats, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi thống kê tuần...`);
+    sendSundayStats();
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job gửi báo cáo đơn gán (23h30)
+  cron.schedule(cronTimeAssignedOrders, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo đơn gán...`);
+    sendDailyAssignedOrdersReport(chatIdAssignedOrders);
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job gửi báo cáo backlog (10h30)
+  cron.schedule(cronTimeBacklog, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo backlog...`);
+    sendDailyBacklogReport(process.env.TELEGRAM_CHAT_ID_BACKLOG || '-1004372456405');
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job gửi báo cáo backlog luân chuyển (01h15)
+  cron.schedule(cronTimeRotationBacklog, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo backlog luân chuyển...`);
+    sendDailyRotationBacklogReport(process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405');
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
+
+  // Thiết lập cron job gửi báo cáo checkin (08h00)
+  cron.schedule(cronTimeCheckin, () => {
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job gửi báo cáo checkin...`);
+    sendDailyCheckinReport(chatIdCheckin);
+  }, {
+    scheduled: true,
+    timezone: timezone
+  });
 }
 
 
@@ -1652,7 +1724,16 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
                  `• Hẹn giờ BOOK XE (16h00): <code>16:00</code> (Nhóm ID: <code>${bookTruckGroup}</code>)\n` +
                  `• Hẹn giờ TỒN CON CƯNG (16h00): <code>16:00</code> (Nhóm ID: <code>${conCungGroup}</code>)\n` +
                  `• Hẹn giờ BACKLOG (10h00): <code>10:00</code> (Nhóm ID: <code>${backlogGroup}</code>)\n` +
-                 `• Hẹn giờ TỒN LC ĐÊM (01h00): <code>01:00</code> (Nhóm ID: <code>${rotationBacklogGroup}</code>)\n\n` +
+                 `• Hẹn giờ TỒN LC ĐÊM (01h00): <code>01:00</code> (Nhóm ID: <code>${rotationBacklogGroup}</code>)\n` +
+                 `• Hẹn giờ CHIỀU (16h30): <code>${cronTimeAfternoon}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n\n` +
+                 `<b>[Cấu hình Báo Cáo Tự Động]</b>\n` +
+                 `• Báo cáo TỐI (20h00): <code>${cronTimeEvening}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n` +
+                 `• Đơn gán (23h30): <code>${cronTimeAssignedOrders}</code> (Nhóm ID: <code>${chatIdAssignedOrders}</code>)\n` +
+                 `• Backlog (10h30): <code>${cronTimeBacklog}</code> (Nhóm ID: <code>${backlogGroup}</code>)\n` +
+                 `• Backlog Luân Chuyển (01h15): <code>${cronTimeRotationBacklog}</code> (Nhóm ID: <code>${rotationBacklogGroup}</code>)\n` +
+                 `• Check-in (08h00): <code>${cronTimeCheckin}</code> (Nhóm ID: <code>${chatIdCheckin}</code>)\n` +
+                 `• Đăng ký lịch (CN 00h00): <code>${cronTimeSundayRegistration}</code> (Nhóm ID: <code>${chatIdSundayRegistration}</code>)\n` +
+                 `• Thống kê tuần (CN 23h05): <code>${cronTimeSundayStats}</code> (Nhóm ID: <code>${chatIdEvening}</code>)\n\n` +
                  `• Thử nghiệm SÁNG: /test_send\n` +
                  `• Thử nghiệm FL: /test_send_fl\n` +
                  `• Thử nghiệm BOOK XE: /test_send_book_truck\n` +
