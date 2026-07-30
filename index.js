@@ -1558,7 +1558,7 @@ function isPastTime(currentHour, currentMinute, targetHour, targetMinute) {
 
 // Thiết lập cron jobs theo loại bot (BOT_TYPE)
 if (botType === 'reminder' || botType === 'all') {
-  console.log('[Khởi động] Đang thiết lập các cron job BÁO NHẮC...');
+  console.log('[Khởi động] Đang thiết lập các cron job BÁO TỰ ĐỘNG HÀNG NGÀY...');
 
   // Thiết lập cron job nhắc nhở SÁNG (10h00)
   cron.schedule(cronTimeMorning, () => {
@@ -1593,10 +1593,9 @@ if (botType === 'reminder' || botType === 'all') {
     scheduled: true,
     timezone: timezone
   });
-
   // Thiết lập cron job nhắc nhở book xe giao hàng ca 16h00
   cron.schedule('0 16 * * *', () => {
-    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở book xe giao ca 16h00...`);
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở book xe...\n`);
     sendBookTruckReminder();
   }, {
     scheduled: true,
@@ -1605,50 +1604,41 @@ if (botType === 'reminder' || botType === 'all') {
 
   // Thiết lập cron job nhắc nhở tồn Con Cưng ca 16h00
   cron.schedule('0 16 * * *', () => {
-    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở tồn Con Cưng ca 16h00...`);
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở tồn Con Cưng...\n`);
     sendConCungReminder();
   }, {
     scheduled: true,
     timezone: timezone
   });
 
-  // Thiết lập cron job nhắc nhở backlog giao - trả ca 10h00
+  // Thiết lập cron job nhắc nhở backlog ca 10h00
   cron.schedule('0 10 * * *', () => {
-    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở backlog giao - trả ca 10h00...`);
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở backlog...\n`);
     sendBacklogReminder();
   }, {
     scheduled: true,
     timezone: timezone
   });
 
-  // Thiết lập cron job nhắc nhở luân chuyển backlog ca 01h00 sáng
+  // Thiết lập cron job nhắc nhở luân chuyển backlog đêm ca 01h00
   cron.schedule('0 1 * * *', () => {
-    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở luân chuyển backlog ca 01h00...`);
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở luân chuyển backlog đêm...\n`);
     sendRotationBacklogReminder();
   }, {
     scheduled: true,
     timezone: timezone
   });
 
-  // Thiết lập cron job nhắc nhở CHIỀU (16h30)
+  // Thiết lập cron job nhắc nhở ca chiều ca 16h30
   cron.schedule(cronTimeAfternoon, () => {
-    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở CHIỀU...`);
+    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở ca chiều...\n`);
     sendAfternoonReminder();
   }, {
     scheduled: true,
     timezone: timezone
   });
 
-  // Thiết lập cron job nhắc nhở TỐI (20h00, 21h00, 22h00, 23h00)
-  cron.schedule(cronTimeEvening, () => {
-    console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở TỐI...`);
-    sendEveningReminder();
-  }, {
-    scheduled: true,
-    timezone: timezone
-  });
-
-  // Thiết lập cron job nhắc nhở đăng ký lịch tuần mới (Chủ Nhật 00h00)
+  // Đăng ký lịch tuần mới (Chủ Nhật 00h00)
   cron.schedule(cronTimeSundayRegistration, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job đăng ký lịch tuần mới...`);
     sendSundayRegistrationReminder();
@@ -1718,7 +1708,7 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
     const conCungGroup = process.env.TELEGRAM_CHAT_ID_CON_CUNG || process.env.TELEGRAM_CHAT_ID || '-5018964680';
     const backlogGroup = process.env.TELEGRAM_CHAT_ID_BACKLOG || '-1004372456405';
     const rotationBacklogGroup = process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405';
-    statusMsg += `<b>[Cấu hình Báo Nhắc]</b>\n` +
+    statusMsg += `<b>[Cấu hình Báo Tự Động Hàng Ngày]</b>\n` +
                  `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
                  `• Hẹn giờ FL (8h, 17h, 18h): <code>08:00, 17:00, 18:00</code> (Nhóm ID: <code>${chatIdFLReport}</code>)\n` +
                  `• Hẹn giờ BOOK XE (16h00): <code>16:00</code> (Nhóm ID: <code>${bookTruckGroup}</code>)\n` +
