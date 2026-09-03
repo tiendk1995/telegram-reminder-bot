@@ -14,7 +14,15 @@ console.log('2. Hãy gửi một tin nhắn bất kỳ vào nhóm đó (ví dụ
 console.log('3. Xem log bên dưới để copy Chat ID của nhóm.\n');
 console.log('Đang kết nối tới Telegram...');
 
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(token, {
+  polling: true,
+  request: {
+    agentOptions: {
+      keepAlive: true,
+      family: 4
+    }
+  }
+});
 
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
@@ -32,7 +40,18 @@ bot.on('message', (msg) => {
 });
 
 bot.on('polling_error', (error) => {
-  console.error('Lỗi kết nối (polling_error):', error.message);
+  const errMsg = error.message || '';
+  if (
+    errMsg.includes('ECONNRESET') || 
+    errMsg.includes('ETIMEDOUT') || 
+    errMsg.includes('ENOTFOUND') || 
+    errMsg.includes('EAI_AGAIN') ||
+    errMsg.includes('socket hang up')
+  ) {
+    console.warn(`[Cảnh báo kết nối] Telegram API tạm thời gián đoạn (${error.message}). Bot đang tự kết nối lại...`);
+  } else {
+    console.error('Lỗi kết nối (polling_error):', error.message);
+  }
 });
 
 console.log('Bot đang lắng nghe tin nhắn... (Nhấn Ctrl+C để dừng)');

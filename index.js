@@ -801,6 +801,115 @@ if (botType === 'reminder' || botType === 'all') {
 }
 
 // ==========================================
+// CẤU HÌNH & LOGIC THEO DÕI ẢNH THÙNG XE
+// ==========================================
+const TRUCK_STAFF_LIST = [
+  { code: '3003781', name: 'Nguyễn Như Hà' },
+  { code: '3004404', name: 'Nguyễn Mạnh Hà' },
+  { code: '3038858', name: 'Dương Văn Đức' },
+  { code: '3093800', name: 'Nghiêm Tuấn Hiệp' },
+  { code: '3101896', name: 'Nguyễn Tuấn Mạnh Đức' },
+  { code: '3113841', name: 'Nguyễn Văn Linh' },
+  { code: '3164199', name: 'Ngô Tiến Nam' },
+  { code: '3164691', name: 'Nguyễn Cao Sơn' },
+  { code: '3173552', name: 'Lưu Thiên Kiệt' },
+  { code: '3176297', name: 'Hà Tuấn Đạt' },
+  { code: '3176457', name: 'Lê Đức Anh' },
+  { code: '3176783', name: 'Khúc Duy Tùng' },
+  { code: '3177244', name: 'Nguyễn Thành Nam' },
+  { code: '3183565', name: 'Nguyễn Năng Tiến Đạt' },
+  { code: '3184200', name: 'Nguyễn Xuân Dũng' }
+];
+
+const truckPhotoStatePath = path.join(__dirname, 'truck_photo_state.json');
+
+function loadTruckPhotoState() {
+  const todayStr = moment().tz(timezone).format('YYYY-MM-DD');
+  if (fs.existsSync(truckPhotoStatePath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(truckPhotoStatePath, 'utf8'));
+      if (data.date === todayStr) {
+        return data;
+      }
+    } catch (e) {}
+  }
+  return { date: todayStr, records: {} };
+}
+
+function saveTruckPhotoState(state) {
+  try {
+    fs.writeFileSync(truckPhotoStatePath, JSON.stringify(state, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Lỗi lưu truck_photo_state.json:', e);
+  }
+}
+
+function findStaffFromMessage(msg) {
+  const textContent = [
+    msg.text || '',
+    msg.caption || '',
+    msg.from ? (msg.from.first_name || '') + ' ' + (msg.from.last_name || '') : '',
+    msg.from ? (msg.from.username || '') : ''
+  ].join(' ').toLowerCase();
+
+  for (const staff of TRUCK_STAFF_LIST) {
+    if (textContent.includes(staff.code)) {
+      return staff;
+    }
+    const cleanName = staff.name.toLowerCase();
+    if (textContent.includes(cleanName)) {
+      return staff;
+    }
+  }
+
+  for (const staff of TRUCK_STAFF_LIST) {
+    const nameParts = staff.name.toLowerCase().split(' ');
+    if (nameParts.length >= 2) {
+      const lastName = nameParts[nameParts.length - 1];
+      const secondLastName = nameParts[nameParts.length - 2] + ' ' + lastName;
+      if (secondLastName.length >= 4 && textContent.includes(secondLastName)) {
+        return staff;
+      }
+    }
+  }
+  return null;
+}
+
+function generateTruckPhotoReportMessage() {
+  const state = loadTruckPhotoState();
+  const todayStr = moment().tz(timezone).format('DD/MM/YYYY');
+  const submittedCodes = new Set(Object.keys(state.records));
+  
+  const submittedList = [];
+  const missingList = [];
+  
+  for (const staff of TRUCK_STAFF_LIST) {
+    if (submittedCodes.has(staff.code)) {
+      const rec = state.records[staff.code];
+      submittedList.push(`• <b>${staff.code}</b> - ${staff.name} <i>(lúc ${rec.time})</i>`);
+    } else {
+      missingList.push(`• ⚠️ <b>${staff.code}</b> - ${staff.name}`);
+    }
+  }
+
+  let msgText = `📸 <b>BÁO CÁO CHỤP ẢNH THÙNG XE (${todayStr})</b>\n\n`;
+  msgText += `📊 <b>Tiến độ:</b> <code>${submittedList.length}/${TRUCK_STAFF_LIST.length}</code> nhân viên đã gửi ảnh\n\n`;
+  
+  if (submittedList.length > 0) {
+    msgText += `✅ <b>ĐÃ GỬI ẢNH (${submittedList.length}):</b>\n` + submittedList.join('\n') + `\n\n`;
+  }
+  
+  if (missingList.length > 0) {
+    msgText += `❌ <b>CHƯA GỬI ẢNH (${missingList.length}):</b>\n` + missingList.join('\n') + `\n\n`;
+    msgText += `⚠️ <i>Lưu ý: Nhân viên không up ảnh thùng sẽ bị loại công & năng suất giao hôm nay!</i>`;
+  } else {
+    msgText += `🎉 <b>Tất cả 15/15 nhân viên đã hoàn thành gửi ảnh thùng xe!</b>`;
+  }
+  
+  return msgText;
+}
+
+// ==========================================
 // CẤU HÌNH VÀ LOGIC NHẮC ẢNH BÁO CÁO FL VÀO CA
 // ==========================================
 const flStatePath = path.join(__dirname, 'fl_report_state.json');
@@ -890,8 +999,61 @@ if (botType === 'reminder' || botType === 'all') {
         }
       }
     }
+
+    // Theo dõi ảnh chụp thùng xe trong nhóm B2B- chụp ảnh thùng xe
+    const isTruckGroup = String(msg.chat.id).includes('5529383342') || String(msg.chat.id) === String(process.env.TELEGRAM_CHAT_ID_TRUCK_PHOTO);
+    if (isTruckGroup) {
+      const hasPhoto = msg.photo || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('image/'));
+      if (hasPhoto) {
+        const staff = findStaffFromMessage(msg);
+        if (staff) {
+          const state = loadTruckPhotoState();
+          const timeStr = moment().tz(timezone).format('HH:mm:ss');
+          state.records[staff.code] = {
+            code: staff.code,
+            name: staff.name,
+            time: timeStr,
+            sender: msg.from ? (msg.from.username ? `@${msg.from.username}` : msg.from.first_name) : 'Thủ công'
+          };
+          saveTruckPhotoState(state);
+          console.log(`[Truck Photo] Đã ghi nhận ảnh thùng xe từ: ${staff.code} - ${staff.name} lúc ${timeStr}`);
+        }
+      }
+    }
   });
 }
+
+// Lệnh báo cáo /check_thung_xe hoặc /baocao_thungxe hoặc /test_send_truck_photo
+bot.onText(/\/(check_thung_xe|baocao_thungxe|test_send_truck_photo)(@\w+)?$/, (msg) => {
+  const report = generateTruckPhotoReportMessage();
+  bot.sendMessage(msg.chat.id, report, { parse_mode: 'HTML' });
+});
+
+// Lệnh đánh dấu thủ công: /mark_thung_xe 3184200
+bot.onText(/\/mark_thung_xe(?:\s+(.+))?$/, (msg, match) => {
+  if (!match[1]) {
+    bot.sendMessage(msg.chat.id, '❌ Vui lòng nhập Mã NV hoặc Tên NV. Ví dụ: <code>/mark_thung_xe 3184200</code>', { parse_mode: 'HTML' });
+    return;
+  }
+  const query = match[1].trim().toLowerCase();
+  const staff = TRUCK_STAFF_LIST.find(s => s.code.toLowerCase() === query || s.name.toLowerCase().includes(query));
+  
+  if (!staff) {
+    bot.sendMessage(msg.chat.id, `❌ Không tìm thấy nhân viên phù hợp với từ khóa: <b>${match[1]}</b>`, { parse_mode: 'HTML' });
+    return;
+  }
+  
+  const state = loadTruckPhotoState();
+  const timeStr = moment().tz(timezone).format('HH:mm:ss');
+  state.records[staff.code] = {
+    code: staff.code,
+    name: staff.name,
+    time: timeStr,
+    sender: 'Xác nhận thủ công'
+  };
+  saveTruckPhotoState(state);
+  bot.sendMessage(msg.chat.id, `✅ Đã đánh dấu thủ công cho nhân viên: <b>${staff.code} - ${staff.name}</b>`, { parse_mode: 'HTML' });
+});
 
 // Hàm kiểm tra và tự động gửi bù các báo cáo bị bỏ lỡ do máy tính tắt/ngủ
 async function checkAndRunMissedJobs() {
