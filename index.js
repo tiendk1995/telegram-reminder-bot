@@ -66,15 +66,43 @@ function recordMessageReceived(chatId) {
 // Đọc cấu hình từ .env
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const botType = (process.env.BOT_TYPE || 'all').toLowerCase();
-const chatIdMorning = process.env.TELEGRAM_CHAT_ID;
-const chatIdAfternoon = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
-const chatIdFLReport = process.env.TELEGRAM_CHAT_ID_FL_REPORT || process.env.TELEGRAM_CHAT_ID;
+const defaultGroup = process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID_CON_CUNG || process.env.TELEGRAM_CHAT_ID_BACKLOG || '-596502058';
+const chatIdMorning = process.env.TELEGRAM_CHAT_ID || defaultGroup;
+const chatIdAfternoon = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID || defaultGroup;
+const chatIdFLReport = process.env.TELEGRAM_CHAT_ID_FL_REPORT || '-4877524742';
 
 const timezone = process.env.TIMEZONE || 'Asia/Ho_Chi_Minh';
 
-const cronTimeMorning = process.env.CRON_TIME || '0 10 * * *';
-const cronTimeAfternoon = process.env.CRON_TIME_AFTERNOON || '30 16 * * *';
+// Hàm chuẩn hóa giờ hẹn: hỗ trợ cả biểu thức cron '0 10 * * *' hoặc giờ dạng '10:00', '16:30', '10h00'
+function formatCronExpression(input, defaultCron) {
+  if (!input || typeof input !== 'string') return defaultCron;
+  const trimmed = input.trim();
+  if (trimmed.split(/\s+/).length === 5) {
+    return trimmed;
+  }
+  const timeMatch = trimmed.match(/^(\d{1,2})[:hH](\d{1,2})?$/);
+  if (timeMatch) {
+    const hour = parseInt(timeMatch[1], 10);
+    const minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return `${minute} ${hour} * * *`;
+    }
+  }
+  return defaultCron;
+}
 
+// Cấu hình giờ báo tự động cho từng báo cáo (có thể chỉnh qua biến môi trường)
+const cronTimeMorning = formatCronExpression(process.env.CRON_TIME_MORNING || process.env.CRON_TIME, '0 10 * * *');
+const cronTimeFL8h = formatCronExpression(process.env.CRON_TIME_FL_8H || process.env.CRON_TIME_FL, '0 8 * * *');
+const cronTimeFL17h = formatCronExpression(process.env.CRON_TIME_FL_17H, '0 17 * * *');
+const cronTimeFL18h = formatCronExpression(process.env.CRON_TIME_FL_18H, '0 18 * * *');
+const cronTimeBookTruck = formatCronExpression(process.env.CRON_TIME_BOOK_TRUCK, '0 16 * * *');
+const cronTimeConCung = formatCronExpression(process.env.CRON_TIME_CON_CUNG, '0 16 * * *');
+const cronTimeBacklog = formatCronExpression(process.env.CRON_TIME_BACKLOG, '0 10 * * *');
+const cronTimeRotationBacklog = formatCronExpression(process.env.CRON_TIME_ROTATION_BACKLOG, '0 1 * * *');
+const cronTimeAfternoon = formatCronExpression(process.env.CRON_TIME_AFTERNOON, '30 16 * * *');
+const cronTimeAssignOrder18h = formatCronExpression(process.env.CRON_TIME_ASSIGN_ORDER_18H, '0 18 * * *');
+const cronTimeUnassignedShops19h = formatCronExpression(process.env.CRON_TIME_UNASSIGNED_SHOPS_19H, '0 19 * * *');
 
 // Kiểm tra xem cấu hình đã hợp lệ chưa
 if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
@@ -82,16 +110,9 @@ if (!token || token === 'YOUR_BOT_TOKEN_HERE') {
   process.exit(1);
 }
 
-if (!chatIdMorning || chatIdMorning === 'YOUR_CHAT_ID_HERE') {
-  console.error('CẢNH BÁO: TELEGRAM_CHAT_ID chưa được cấu hình chính xác. Hãy dùng script get-chat-id.js để lấy Chat ID nhóm.');
-}
-
-// Kiểm tra xem có đang chạy trên môi trường Render không
-const isRender = process.env.RENDER === 'true' || process.env.RENDER !== undefined;
-
 // Khởi tạo bot với chế độ polling kèm Keep-Alive để tránh lỗi ECONNRESET
 const bot = new TelegramBot(token, {
-  polling: !isRender,
+  polling: true,
   request: {
     agentOptions: {
       keepAlive: true,
@@ -187,15 +208,15 @@ async function safeSendPhoto(chatId, photo, options = {}, fileOptions = {}, retr
 
 console.log('=== Telegram Reminder Bot Đang Khởi Động ===');
 console.log(`Múi giờ hoạt động: ${timezone}`);
-console.log(`Lịch gửi SÁNG (10h00): ${cronTimeMorning} (Nhóm ID: ${chatIdMorning})`);
-console.log(`Lịch gửi FL (8h, 17h, 18h): 08:00, 17:00, 18:00 (Nhóm ID: ${chatIdFLReport})`);
-console.log(`Lịch gửi BOOK XE (16h00): 0 16 * * * (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_BOOK_TRUCK || '-5599911868'})`);
-console.log(`Lịch gửi TỒN CON CƯNG (16h00): 0 16 * * * (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_CON_CUNG || chatIdMorning})`);
-console.log(`Lịch gửi BACKLOG (10h00): 0 10 * * * (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_BACKLOG || '-1004372456405'})`);
-console.log(`Lịch gửi TỒN LC ĐÊM (01h00): 0 1 * * * (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405'})`);
-console.log(`Lịch gửi CHIỀU (16h30): ${cronTimeAfternoon} (Nhóm ID: ${chatIdAfternoon})`);
-console.log(`Lịch gửi GÁN ĐƠN (18h00): 0 18 * * * (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_ASSIGNED_ORDERS || '-5018964680'})`);
-console.log(`Lịch QUÉT UNASSIGNED SHOPS (19h00): 0 19 * * * (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_ASSIGNED_ORDERS || '-5018964680'})`);
+console.log(`Lịch gửi SÁNG: ${cronTimeMorning} (Nhóm ID: ${chatIdMorning})`);
+console.log(`Lịch gửi FL: ${cronTimeFL8h}, ${cronTimeFL17h}, ${cronTimeFL18h} (Nhóm ID: ${chatIdFLReport})`);
+console.log(`Lịch gửi BOOK XE: ${cronTimeBookTruck} (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_BOOK_TRUCK || '-5599911868'})`);
+console.log(`Lịch gửi TỒN CON CƯNG: ${cronTimeConCung} (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_CON_CUNG || chatIdMorning})`);
+console.log(`Lịch gửi BACKLOG: ${cronTimeBacklog} (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_BACKLOG || '-1004372456405'})`);
+console.log(`Lịch gửi TỒN LC ĐÊM: ${cronTimeRotationBacklog} (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405'})`);
+console.log(`Lịch gửi CHIỀU: ${cronTimeAfternoon} (Nhóm ID: ${chatIdAfternoon})`);
+console.log(`Lịch gửi GÁN ĐƠN: ${cronTimeAssignOrder18h} (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_ASSIGNED_ORDERS || '-5018964680'})`);
+console.log(`Lịch QUÉT UNASSIGNED SHOPS: ${cronTimeUnassignedShops19h} (Nhóm ID: ${process.env.TELEGRAM_CHAT_ID_ASSIGNED_ORDERS || '-5018964680'})`);
 console.log(`Thời gian hiện tại của hệ thống bot: ${moment().tz(timezone).format('YYYY-MM-DD HH:mm:ss')}`);
 
 
@@ -314,9 +335,9 @@ function generateAssignOrder18hReminderMessage() {
 
 // Hàm gửi tin nhắn nhắc nhở SÁNG
 async function sendMorningReminder() {
-  const currentChatId = process.env.TELEGRAM_CHAT_ID;
+  const currentChatId = process.env.TELEGRAM_CHAT_ID || chatIdMorning;
   if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
-    console.error('Không thể gửi nhắc nhở sáng vì chưa cấu hình TELEGRAM_CHAT_ID trong file .env');
+    console.error('Không thể gửi nhắc nhở sáng vì chưa cấu hình TELEGRAM_CHAT_ID');
     return;
   }
 
@@ -428,9 +449,9 @@ async function sendRotationBacklogReminder() {
 
 // Hàm gửi tin nhắn nhắc nhở CHIỀU
 async function sendAfternoonReminder() {
-  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
+  const currentChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID || chatIdAfternoon;
   if (!currentChatId || currentChatId === 'YOUR_CHAT_ID_HERE') {
-    console.error('Không thể gửi nhắc nhở chiều vì chưa cấu hình TELEGRAM_CHAT_ID_AFTERNOON trong file .env');
+    console.error('Không thể gửi nhắc nhở chiều vì chưa cấu hình Chat ID');
     return;
   }
 
@@ -496,7 +517,7 @@ if (botType === 'reminder' || botType === 'all') {
   });
 
   // Thiết lập các cron job nhắc nhở FL (ca 8h, 17h, 18h)
-  cron.schedule('0 8 * * *', () => {
+  cron.schedule(cronTimeFL8h, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở FL ca 08h00...`);
     sendFLReminder();
   }, {
@@ -504,7 +525,7 @@ if (botType === 'reminder' || botType === 'all') {
     timezone: timezone
   });
 
-  cron.schedule('0 17 * * *', () => {
+  cron.schedule(cronTimeFL17h, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở FL ca 17h00...`);
     sendFLReminder();
   }, {
@@ -512,7 +533,7 @@ if (botType === 'reminder' || botType === 'all') {
     timezone: timezone
   });
 
-  cron.schedule('0 18 * * *', () => {
+  cron.schedule(cronTimeFL18h, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở FL ca 18h00...`);
     sendFLReminder();
   }, {
@@ -520,7 +541,7 @@ if (botType === 'reminder' || botType === 'all') {
     timezone: timezone
   });
   // Thiết lập cron job nhắc nhở book xe giao hàng ca 16h00
-  cron.schedule('0 16 * * *', () => {
+  cron.schedule(cronTimeBookTruck, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở book xe...\n`);
     sendBookTruckReminder();
   }, {
@@ -529,7 +550,7 @@ if (botType === 'reminder' || botType === 'all') {
   });
 
   // Thiết lập cron job nhắc nhở tồn Con Cưng ca 16h00
-  cron.schedule('0 16 * * *', () => {
+  cron.schedule(cronTimeConCung, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở tồn Con Cưng...\n`);
     sendConCungReminder();
   }, {
@@ -538,7 +559,7 @@ if (botType === 'reminder' || botType === 'all') {
   });
 
   // Thiết lập cron job nhắc nhở backlog ca 10h00
-  cron.schedule('0 10 * * *', () => {
+  cron.schedule(cronTimeBacklog, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở backlog...\n`);
     sendBacklogReminder();
   }, {
@@ -547,7 +568,7 @@ if (botType === 'reminder' || botType === 'all') {
   });
 
   // Thiết lập cron job nhắc nhở luân chuyển backlog đêm ca 01h00
-  cron.schedule('0 1 * * *', () => {
+  cron.schedule(cronTimeRotationBacklog, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở luân chuyển backlog đêm...\n`);
     sendRotationBacklogReminder();
   }, {
@@ -565,7 +586,7 @@ if (botType === 'reminder' || botType === 'all') {
   });
 
   // Thiết lập cron job nhắc nhở GÁN ĐƠN ca 18h00
-  cron.schedule('0 18 * * *', () => {
+  cron.schedule(cronTimeAssignOrder18h, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job nhắc nhở GÁN ĐƠN 18H...\n`);
     sendAssignOrder18hReminder();
   }, {
@@ -574,7 +595,7 @@ if (botType === 'reminder' || botType === 'all') {
   });
 
   // Thiết lập cron job quét kiểm tra 10 shop chưa gán chuyến đi ca 19h00
-  cron.schedule('0 19 * * *', () => {
+  cron.schedule(cronTimeUnassignedShops19h, () => {
     console.log(`[${moment().tz(timezone).format()}] Kích hoạt cron job quét kiểm tra shop chưa gán chuyến đi 19H...\n`);
     runUnassignedShops19hCheck();
   }, {
@@ -602,15 +623,15 @@ bot.onText(/\/status(@\w+)?$/, (msg) => {
     const rotationBacklogGroup = process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || '-1004372456405';
     const assignOrderGroup = process.env.TELEGRAM_CHAT_ID_ASSIGNED_ORDERS || process.env.TELEGRAM_CHAT_ID_ASSIGN_ORDER || '-5018964680';
     statusMsg += `<b>[Cấu hình Báo Tự Động Hàng Ngày]</b>\n` +
-                 `• Hẹn giờ SÁNG (10h00): <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
-                 `• Hẹn giờ FL (8h, 17h, 18h): <code>08:00, 17:00, 18:00</code> (Nhóm ID: <code>${chatIdFLReport}</code>)\n` +
-                 `• Hẹn giờ BOOK XE (16h00): <code>16:00</code> (Nhóm ID: <code>${bookTruckGroup}</code>)\n` +
-                 `• Hẹn giờ TỒN CON CƯNG (16h00): <code>16:00</code> (Nhóm ID: <code>${conCungGroup}</code>)\n` +
-                 `• Hẹn giờ BACKLOG (10h00): <code>10:00</code> (Nhóm ID: <code>${backlogGroup}</code>)\n` +
-                 `• Hẹn giờ TỒN LC ĐÊM (01h00): <code>01:00</code> (Nhóm ID: <code>${rotationBacklogGroup}</code>)\n` +
-                 `• Hẹn giờ CHIỀU (16h30): <code>${cronTimeAfternoon}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
-                 `• Hẹn giờ GÁN ĐƠN (18h00): <code>18:00</code> (Nhóm ID: <code>${assignOrderGroup}</code>)\n` +
-                 `• Hẹn giờ QUÉT SHOP (19h00): <code>19:00</code> (Nhóm ID: <code>${assignOrderGroup}</code>)\n\n` +
+                 `• Hẹn giờ SÁNG: <code>${cronTimeMorning}</code> (Nhóm ID: <code>${chatIdMorning}</code>)\n` +
+                 `• Hẹn giờ FL: <code>${cronTimeFL8h}, ${cronTimeFL17h}, ${cronTimeFL18h}</code> (Nhóm ID: <code>${chatIdFLReport}</code>)\n` +
+                 `• Hẹn giờ BOOK XE: <code>${cronTimeBookTruck}</code> (Nhóm ID: <code>${bookTruckGroup}</code>)\n` +
+                 `• Hẹn giờ TỒN CON CƯNG: <code>${cronTimeConCung}</code> (Nhóm ID: <code>${conCungGroup}</code>)\n` +
+                 `• Hẹn giờ BACKLOG: <code>${cronTimeBacklog}</code> (Nhóm ID: <code>${backlogGroup}</code>)\n` +
+                 `• Hẹn giờ TỒN LC ĐÊM: <code>${cronTimeRotationBacklog}</code> (Nhóm ID: <code>${rotationBacklogGroup}</code>)\n` +
+                 `• Hẹn giờ CHIỀU: <code>${cronTimeAfternoon}</code> (Nhóm ID: <code>${chatIdAfternoon}</code>)\n` +
+                 `• Hẹn giờ GÁN ĐƠN: <code>${cronTimeAssignOrder18h}</code> (Nhóm ID: <code>${assignOrderGroup}</code>)\n` +
+                 `• Hẹn giờ QUÉT SHOP: <code>${cronTimeUnassignedShops19h}</code> (Nhóm ID: <code>${assignOrderGroup}</code>)\n\n` +
                  `• Thử nghiệm SÁNG: /test_send\n` +
                  `• Thử nghiệm FL: /test_send_fl\n` +
                  `• Thử nghiệm BOOK XE: /test_send_book_truck\n` +
