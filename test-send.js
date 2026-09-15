@@ -28,7 +28,7 @@ function generateTagList(envValue, defaultVal) {
 
 // Hàm sinh nội dung tin nhắn nhắc nhở SÁNG
 function generateMorningReminderMessage() {
-  const tags = generateTagList(process.env.TAG_MORNING, '719990341, 8403744896, 7708350872, 3170505');
+  const tags = generateTagList(process.env.TAG_MORNING, '719990341, 8403744896, 7708350872');
   return `🚚 <b>BÁO CÁO CA SÁNG</b>\n` +
          `━━━━━━━━━━━━━━━━━━\n\n` +
          `1️⃣ <b>NHÂN SỰ</b>\n` +
@@ -46,7 +46,7 @@ function generateMorningReminderMessage() {
 
 // Hàm sinh nội dung tin nhắn nhắc nhở báo cáo FL
 function generateFLReminderMessage() {
-  const tags = generateTagList(process.env.TAG_FL, '719990341, 8403744896, 7708350872, 3170505, 6281487432, 868743297, 8711123602');
+  const tags = generateTagList(process.env.TAG_FL, '719990341, 8403744896, 7708350872, 6281487432, 868743297, 8711123602');
   return `📸 <b>NHẮC NHỞ BÁO CÁO ẢNH FL</b>\n\n` +
          `⚠️ Đã đến thời gian báo cáo ảnh vào ca.\n\n` +
          `Vui lòng gửi ảnh báo cáo FL theo đúng quy định để bộ phận vận hành tổng hợp và theo dõi.\n\n` +
@@ -67,7 +67,7 @@ function generateBookTruckReminderMessage() {
 
 // Hàm sinh nội dung tin nhắn nhắc nhở báo cáo tồn Con Cưng
 function generateConCungReminderMessage() {
-  const tags = generateTagList(process.env.TAG_CON_CUNG, '7708350872, 3170505');
+  const tags = generateTagList(process.env.TAG_CON_CUNG, '7708350872');
   return `📋 <b>BÁO CÁO TỒN CON CƯNG</b>\n` +
          `━━━━━━━━━━━━━━━━━━\n\n` +
          `📦 Tổng đơn tồn: ...... đơn\n\n` +
@@ -80,7 +80,7 @@ function generateConCungReminderMessage() {
 
 // Hàm sinh nội dung tin nhắn nhắc nhở báo cáo backlog
 function generateBacklogReminderMessage() {
-  const tags = generateTagList(process.env.TAG_BACKLOG, '7708350872, 3170505, 8403744896, 719990341');
+  const tags = generateTagList(process.env.TAG_BACKLOG, '7708350872, 8403744896, 719990341');
   return `📋 <b>BÁO CÁO ĐƠN TỒN TRÊN 36H</b>\n` +
          `━━━━━━━━━━━━━━━━━━\n\n` +
          `🚚 Đơn tồn giao: ...... đơn\n` +
@@ -103,25 +103,6 @@ function generateRotationBacklogReminderMessage() {
          `🏷️ Tag: ${tags}`;
 }
 
-// Hàm sinh nội dung tin nhắn nhắc nhở CHIỀU
-function generateAfternoonReminderMessage() {
-  const tags = generateTagList(process.env.TAG_AFTERNOON || process.env.EMPLOYEE_USERNAMES, '');
-  return `🚚 <b>BOOK XE NGÀY MAI</b>\n\n` +
-         `🚛 NVGH: …… xe\n` +
-         `👨💼 FL: …… xe\n\n` +
-         `📊 Tổng book: …… xe\n\n` +
-         `${tags ? `Mời các bạn: ${tags}` : ''}`;
-}
-
-// Hàm sinh nội dung tin nhắn nhắc nhở GÁN ĐƠN (18h00)
-function generateAssignOrder18hReminderMessage() {
-  const tags = generateTagList(process.env.TAG_ASSIGNED_ORDERS || process.env.TAG_ASSIGN_ORDER_18H || process.env.EMPLOYEE_USERNAMES, '');
-  return `⏰ <b>18H HẰNG NGÀY</b>\n\n` +
-         `Yêu cầu các bạn nhân viên thực hiện gán đơn đầy đủ trước/sau 18h theo quy định.\n\n` +
-         `Sau khi gán xong, phản hồi “Đã gán đơn” để xác nhận hoàn thành.` +
-         (tags ? `\n\n🏷️ TAG: ${tags}` : '');
-}
-
 // Lựa chọn tin nhắn và nhóm ID gửi tương ứng
 if (testType === 'morning') {
   targetChatId = process.env.TELEGRAM_CHAT_ID;
@@ -141,14 +122,8 @@ if (testType === 'morning') {
 } else if (testType === 'rotation_backlog') {
   targetChatId = process.env.TELEGRAM_CHAT_ID_ROTATION_BACKLOG || process.env.TELEGRAM_CHAT_ID;
   message = generateRotationBacklogReminderMessage();
-} else if (testType === 'afternoon') {
-  targetChatId = process.env.TELEGRAM_CHAT_ID_AFTERNOON || process.env.TELEGRAM_CHAT_ID;
-  message = generateAfternoonReminderMessage();
-} else if (testType === 'assign_order_18h' || testType === 'gan_don') {
-  targetChatId = process.env.TELEGRAM_CHAT_ID_ASSIGNED_ORDERS || process.env.TELEGRAM_CHAT_ID_ASSIGN_ORDER || process.env.TELEGRAM_CHAT_ID;
-  message = generateAssignOrder18hReminderMessage();
 } else {
-  console.error(`Lỗi: Loại test "${testType}" không hợp lệ. Các loại hợp lệ: morning, fl, book_truck, con_cung, backlog, rotation_backlog, afternoon, assign_order_18h (hoặc gan_don)`);
+  console.error(`Lỗi: Loại test "${testType}" không hợp lệ. Các loại hợp lệ: morning, fl, book_truck, con_cung, backlog, rotation_backlog`);
   process.exit(1);
 }
 
