@@ -81,7 +81,7 @@ function generateConCungReminderMessage() {
 // Hàm sinh nội dung tin nhắn nhắc nhở báo cáo backlog
 function generateBacklogReminderMessage() {
   const tags = generateTagList(process.env.TAG_BACKLOG, '7708350872, 8403744896, 719990341');
-  return `📋 <b>BÁO CÁO ĐƠN TỒN TRÊN 36H</b>\n` +
+  return `📋 <b>BÁO CÁO ĐƠN TỒN TRÊN 0H</b>\n` +
          `━━━━━━━━━━━━━━━━━━\n\n` +
          `🚚 Đơn tồn giao: ...... đơn\n` +
          `📝 Giải trình:\n\n` +
@@ -95,7 +95,7 @@ function generateBacklogReminderMessage() {
 // Hàm sinh nội dung tin nhắn nhắc nhở báo cáo luân chuyển backlog
 function generateRotationBacklogReminderMessage() {
   const tags = generateTagList(process.env.TAG_ROTATION_BACKLOG, '6281487432, 7304483491, 868743297, 8711123602');
-  return `📋 <b>BÁO CÁO ĐƠN TỒN LUÂN CHUYỂN TRÊN 36H</b>\n\n` +
+  return `📋 <b>BÁO CÁO ĐƠN TỒN LUÂN CHUYỂN TRÊN 0H</b>\n\n` +
          `🚚 Luân chuyển giao:\n` +
          `📝 Giải trình: ……\n\n` +
          `🔄 Luân chuyển trả:\n` +
