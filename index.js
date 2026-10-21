@@ -299,7 +299,8 @@ function generateBookTruckReminderMessage() {
   const tags = generateTagList(process.env.TAG_BOOK_TRUCK, '719990341, 8403744896, Tú29N1, NVTHANGDP');
   return `🚚 <b>BOOK XE GIAO NGÀY MAI</b>\n` +
          `━━━━━━━━━━━━━━━━━━\n\n` +
-         `🚛 NVGH: …… xe\n` 
+         `🚛 NVGH: …… xe\n` +
+         `🚛 NVGH đi Hưng Yên: …… xe\n\n` +
          `📊 <b>TỔNG BOOK: …… xe</b>\n\n` +
          `🏷️ TAG: ${tags}`;
 }
@@ -320,7 +321,7 @@ function generateConCungReminderMessage() {
 // Hàm sinh nội dung tin nhắn nhắc nhở báo cáo backlog
 function generateBacklogReminderMessage() {
   const tags = generateTagList(process.env.TAG_BACKLOG, '7708350872, 8403744896, 719990341');
-  return `📋 <b>BÁO CÁO ĐƠN TỒN TRÊN 0H</b>\n` +
+  return `📋 <b>BÁO CÁO ĐƠN TỒN TRÊN 36H</b>\n` +
          `━━━━━━━━━━━━━━━━━━\n\n` +
          `🚚 Đơn tồn giao: ...... đơn\n` +
          `📝 Giải trình:\n\n` +
@@ -334,7 +335,7 @@ function generateBacklogReminderMessage() {
 // Hàm sinh nội dung tin nhắn nhắc nhở báo cáo luân chuyển backlog
 function generateRotationBacklogReminderMessage() {
   const tags = generateTagList(process.env.TAG_ROTATION_BACKLOG, '6281487432, 7304483491, 868743297, 8711123602');
-  return `📋 <b>BÁO CÁO ĐƠN TỒN LUÂN CHUYỂN TRÊN 0H</b>\n\n` +
+  return `📋 <b>BÁO CÁO ĐƠN TỒN LUÂN CHUYỂN TRÊN 36H</b>\n\n` +
          `🚚 Luân chuyển giao:\n` +
          `📝 Giải trình: ……\n\n` +
          `🔄 Luân chuyển trả:\n` +
@@ -744,7 +745,11 @@ const TRUCK_STAFF_LIST = [
   { code: '3176783', name: 'Khúc Duy Tùng' },
   { code: '3177244', name: 'Nguyễn Thành Nam' },
   { code: '3183565', name: 'Nguyễn Năng Tiến Đạt' },
-  { code: '3184200', name: 'Nguyễn Xuân Dũng' }
+  { code: '3184200', name: 'Nguyễn Xuân Dũng' },
+  { code: '3185283', name: 'Lê Hoài Nam' },
+  { code: '3185622', name: 'Lý Công Thành' },
+  { code: '3185668', name: 'Nguyễn Xuân Chung' },
+  { code: '3185988', name: 'Nguyễn Hoàng Long' }
 ];
 
 const truckPhotoStatePath = path.join(__dirname, 'truck_photo_state.json');
